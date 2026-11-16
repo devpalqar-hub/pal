@@ -2,7 +2,7 @@ import nodemailer, { type Transporter } from "nodemailer";
 import type { NotificationType } from "@prisma/client";
 import { prisma } from "./prisma";
 
-export const TASK_TYPES: NotificationType[] = ["TASK_ASSIGNED", "TASK_REVIEW_REQUESTED", "TASK_COMPLETED", "TASK_APPROVED", "TASK_REJECTED", "TASK_ENDED", "TASK_DECLINED"];
+export const TASK_TYPES: NotificationType[] = ["TASK_ASSIGNED", "TASK_REVIEW_REQUESTED", "TASK_COMPLETED", "TASK_APPROVED", "TASK_REJECTED", "TASK_ENDED", "TASK_DECLINED", "TASK_COMMENT"];
 export const LEAVE_TYPES: NotificationType[] = ["LEAVE_DECIDED"];
 export const MEETING_TYPES: NotificationType[] = ["MEETING_INVITE", "MEETING_UPDATED", "MEETING_CANCELLED"];
 export const REQUEST_NOTIFY_TYPES: NotificationType[] = ["REQUEST_RECEIVED", "REQUEST_REJECTED", "REQUEST_RESUBMITTED", "REQUEST_APPROVED", "REQUEST_COMPLETED"];

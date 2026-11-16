@@ -1,0 +1,23 @@
+-- AlterTable
+ALTER TABLE `task_events` MODIFY `note` TEXT NULL;
+
+-- AlterTable
+ALTER TABLE `notifications` MODIFY `type` ENUM('TASK_ASSIGNED', 'TASK_REVIEW_REQUESTED', 'TASK_COMPLETED', 'TASK_APPROVED', 'TASK_REJECTED', 'TASK_ENDED', 'TASK_DECLINED', 'TASK_COMMENT', 'REQUEST_RECEIVED', 'REQUEST_REJECTED', 'REQUEST_RESUBMITTED', 'REQUEST_APPROVED', 'REQUEST_COMPLETED', 'MEETING_INVITE', 'MEETING_UPDATED', 'MEETING_CANCELLED', 'LEAVE_DECIDED') NOT NULL;
+
+-- CreateTable
+CREATE TABLE `task_comments` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `taskId` INTEGER NOT NULL,
+    `authorId` INTEGER NOT NULL,
+    `body` TEXT NOT NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+    INDEX `task_comments_taskId_createdAt_idx`(`taskId`, `createdAt`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- AddForeignKey
+ALTER TABLE `task_comments` ADD CONSTRAINT `task_comments_taskId_fkey` FOREIGN KEY (`taskId`) REFERENCES `tasks`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `task_comments` ADD CONSTRAINT `task_comments_authorId_fkey` FOREIGN KEY (`authorId`) REFERENCES `users`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;

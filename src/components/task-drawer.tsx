@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { X, Play, Pause, CheckCircle2, Send, Flag, ThumbsUp, ThumbsDown, Plus, CalendarDays, Timer, Users, Ban, Pencil } from "lucide-react";
+import { X, Play, Pause, CheckCircle2, Send, Flag, ThumbsUp, ThumbsDown, Plus, CalendarDays, Timer, Users, Ban, Pencil, MessageSquare } from "lucide-react";
 import { api } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth";
 import { fmtDateTime, fmtDate, fmtDuration, fmtMinutes } from "@/lib/client/format";
@@ -41,6 +41,7 @@ export function TaskDrawer({ taskId, onClose, onChanged }: { taskId: number; onC
   const [openId, setOpenId] = useState(taskId);
   const [editDesc, setEditDesc] = useState<string | null>(null);
   const [picked, setPicked] = useState<number[]>([]);
+  const [comment, setComment] = useState("");
 
   const load = useCallback(async () => {
     const { task } = await api(`/api/tasks/${openId}`);
@@ -70,6 +71,19 @@ export function TaskDrawer({ taskId, onClose, onChanged }: { taskId: number; onC
       await load();
       onChanged();
       return r;
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Failed", true);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function postComment() {
+    if (!comment.trim()) return;
+    setBusy(true);
+    try {
+      await api(`/api/tasks/${task.id}/comments`, { method: "POST", body: { body: comment } });
+      setComment("");
+      await load();
     } catch (e) {
       toast(e instanceof Error ? e.message : "Failed", true);
     } finally {
@@ -218,6 +232,26 @@ export function TaskDrawer({ taskId, onClose, onChanged }: { taskId: number; onC
                 <StatusBadge status={s.status} />
               </div>
             ))}
+          </div>
+
+          {/* ── Comments / doubts ── */}
+          <div style={{ marginBottom: 24 }}>
+            <h4 style={{ marginBottom: 12 }}><MessageSquare size={14} style={{ verticalAlign: -2 }} /> Comments &amp; doubts ({task.comments.length})</h4>
+            {task.comments.length === 0 && <p className="hint">No comments yet. Ask a question about this task below.</p>}
+            {task.comments.map((c: any) => (
+              <div key={c.id} className="subtask" style={{ cursor: "default", alignItems: "flex-start" }}>
+                <Avatar name={c.author.name} small />
+                <div style={{ flex: 1 }}>
+                  <div><b>{c.author.name}{c.author.id === user.id ? " (you)" : ""}</b> <span className="hint">{fmtDateTime(c.createdAt)}</span></div>
+                  <div style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{c.body}</div>
+                </div>
+              </div>
+            ))}
+            <textarea className="textarea" rows={2} maxLength={2000} placeholder="Ask a doubt or add a comment…" value={comment} onChange={(e) => setComment(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) postComment(); }} style={{ width: "100%", marginTop: 8 }} />
+            <div className="actions" style={{ marginTop: 8 }}>
+              <button className="btn btn-primary btn-sm" disabled={busy || !comment.trim()} onClick={postComment}><Send size={14} /> Post</button>
+            </div>
           </div>
 
           <h4 style={{ marginBottom: 12 }}>Activity</h4>

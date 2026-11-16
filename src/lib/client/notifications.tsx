@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { Bell, CalendarClock, CalendarOff, CheckCircle2, ClipboardCheck, Eye, Flag, FileCheck2, FileX2, FilePlus2, Pin, ThumbsUp, Undo2, Ban, type LucideIcon } from "lucide-react";
+import { Bell, CalendarClock, CalendarOff, CheckCircle2, ClipboardCheck, Eye, Flag, FileCheck2, FileX2, FilePlus2, Pin, ThumbsUp, Undo2, Ban, MessageSquare, type LucideIcon } from "lucide-react";
 import { api } from "./api";
 import { desktopNotify } from "./desktop-notify";
 import { useToast } from "@/components/ui";
@@ -84,7 +84,7 @@ export function useNotifications() {
 }
 
 export const NOTICE_ICON: Record<string, LucideIcon> = {
-  TASK_ASSIGNED: Pin, TASK_REVIEW_REQUESTED: Eye, TASK_COMPLETED: CheckCircle2, TASK_APPROVED: ThumbsUp, TASK_REJECTED: Undo2, TASK_ENDED: Flag, TASK_DECLINED: Ban,
+  TASK_ASSIGNED: Pin, TASK_REVIEW_REQUESTED: Eye, TASK_COMPLETED: CheckCircle2, TASK_APPROVED: ThumbsUp, TASK_REJECTED: Undo2, TASK_ENDED: Flag, TASK_DECLINED: Ban, TASK_COMMENT: MessageSquare,
   REQUEST_RECEIVED: FilePlus2, REQUEST_REJECTED: FileX2, REQUEST_RESUBMITTED: ClipboardCheck, REQUEST_APPROVED: FileCheck2, REQUEST_COMPLETED: FileCheck2,
   MEETING_INVITE: CalendarClock, MEETING_UPDATED: CalendarClock, MEETING_CANCELLED: CalendarClock, LEAVE_DECIDED: CalendarOff,
 };

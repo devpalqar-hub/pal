@@ -67,6 +67,7 @@ model User {
   assignedTasks     Task[]            @relation("TaskAssignee")
   reviewTasks       Task[]            @relation("TaskReviewer")
   taskEvents        TaskEvent[]
+  taskComments      TaskComment[]
 
   @@map("users")
 }
@@ -289,6 +290,7 @@ model Task {
   assignee  User?          @relation("TaskAssignee", fields: [assigneeId], references: [id])
   reviewer  User?          @relation("TaskReviewer", fields: [reviewerId], references: [id])
   events    TaskEvent[]
+  comments  TaskComment[]
   assignees TaskAssignee[]
 
   @@index([projectId, status])
@@ -302,7 +304,7 @@ model TaskEvent {
   taskId  Int
   type    TaskEventType
   actorId Int
-  note    String?
+  note    String?       @db.Text
   at      DateTime      @default(now())
 
   task  Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
@@ -310,6 +312,21 @@ model TaskEvent {
 
   @@index([taskId, at])
   @@map("task_events")
+}
+
+/// Questions / discussion on a task, visible to everyone who can see the task.
+model TaskComment {
+  id        Int      @id @default(autoincrement())
+  taskId    Int
+  authorId  Int
+  body      String   @db.Text
+  createdAt DateTime @default(now())
+
+  task   Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id])
+
+  @@index([taskId, createdAt])
+  @@map("task_comments")
 }
 
 // ───────────────────────── Leave requests ─────────────────────────
@@ -358,6 +375,7 @@ enum NotificationType {
   TASK_REJECTED
   TASK_ENDED
   TASK_DECLINED
+  TASK_COMMENT
   REQUEST_RECEIVED
   REQUEST_REJECTED
   REQUEST_RESUBMITTED

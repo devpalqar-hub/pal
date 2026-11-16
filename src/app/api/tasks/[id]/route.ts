@@ -19,6 +19,7 @@ export const GET = authed<P>(async (_req, actor, { id }) => {
       project: { select: { id: true, name: true } },
       parent: { select: { id: true, title: true, status: true } },
       subtasks: { include: taskInclude, orderBy: { createdAt: "asc" } },
+      comments: { include: { author: { select: { id: true, name: true } } }, orderBy: { id: "asc" } },
       events: { include: { actor: { select: { id: true, name: true } } }, orderBy: { id: "asc" } },
     },
   });
