@@ -9,13 +9,9 @@ import { RichTextEditor } from "./rich-text";
 
 export interface Member { user: { id: number; name: string; role: string } }
 
-/** Members the current user may assign work to (mirrors the server rule). */
-export function assignableMembers(members: Member[], me: { id: number; role: string }, canManage: boolean) {
-  return members.filter((m) => {
-    if (m.user.id === me.id) return true;
-    if (canManage) return true;
-    return ROLE_RANK[me.role] >= ROLE_RANK.LEAD && ROLE_RANK[me.role] > ROLE_RANK[m.user.role];
-  });
+/** Anyone on the project may assign work to any project member (mirrors the server rule). */
+export function assignableMembers(members: Member[], _me?: { id: number; role: string }, _canManage?: boolean) {
+  return members;
 }
 
 /** Toggle list for picking several people. */

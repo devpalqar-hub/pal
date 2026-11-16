@@ -26,7 +26,7 @@ export default function MyTasks() {
   const [mine, setMine] = useState<any[] | null>(null);
   const [review, setReview] = useState<any[] | null>(null);
   const [openId, setOpenId] = useState<number | null>(openParam);
-  const [f, setF] = useState({ q: "", status: "", priority: "", project: "", due: "", hideEnded: true, onlyNew: false });
+  const [f, setF] = useState({ q: "", status: "", priority: "", project: "", due: "", kind: "", hideEnded: true, onlyNew: false });
 
   const load = useCallback(async () => {
     const [m, r] = await Promise.all([api("/api/tasks/me"), api("/api/tasks/me?role=reviewer")]);
@@ -52,6 +52,8 @@ export default function MyTasks() {
       if (f.priority && t.priority !== f.priority) return false;
       if (f.project && String(t.project.id) !== f.project) return false;
       if (f.onlyNew && !unreadTaskIds.has(t.id)) return false;
+      if (f.kind === "top" && t.parent) return false;
+      if (f.kind === "sub" && !t.parent) return false;
       if (f.q && !t.title.toLowerCase().includes(f.q.toLowerCase())) return false;
       const due = t.dueDate?.slice(0, 10);
       if (f.due === "overdue" && !(due && due < today && t.status !== "ENDED" && t.status !== "COMPLETED")) return false;
@@ -61,8 +63,23 @@ export default function MyTasks() {
     });
   }, [source, f, tab, unreadTaskIds]);
 
+  /** Parents first, with their sub-tasks listed directly beneath them (when both are in the list). */
+  const ordered = useMemo(() => {
+    if (!shown) return null;
+    const ids = new Set(shown.map((t) => t.id));
+    const childrenOf = new Map<number, any[]>();
+    shown.forEach((t) => { if (t.parent && ids.has(t.parent.id)) childrenOf.set(t.parent.id, [...(childrenOf.get(t.parent.id) ?? []), t]); });
+    const out: { task: any; nested: boolean }[] = [];
+    shown.forEach((t) => {
+      if (t.parent && ids.has(t.parent.id)) return; // emitted under its parent
+      out.push({ task: t, nested: false });
+      (childrenOf.get(t.id) ?? []).forEach((c) => out.push({ task: c, nested: true }));
+    });
+    return out;
+  }, [shown]);
+
   const newCount = (mine ?? []).filter((t) => unreadTaskIds.has(t.id)).length;
-  const dirty = f.q || f.status || f.priority || f.project || f.due || f.onlyNew;
+  const dirty = f.q || f.status || f.priority || f.project || f.due || f.kind || f.onlyNew;
   const set = (k: string) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
 
   return (
@@ -99,26 +116,35 @@ export default function MyTasks() {
           <option value="week">Due in 7 days</option>
           <option value="none">No due date</option>
         </select>
+        <select className="select" value={f.kind} onChange={set("kind")}>
+          <option value="">Tasks & sub-tasks</option>
+          <option value="top">Tasks only</option>
+          <option value="sub">Sub-tasks only</option>
+        </select>
         <label className="chip" style={{ display: "inline-flex", gap: 6, alignItems: "center" }}><input type="checkbox" checked={f.onlyNew} onChange={(e) => setF({ ...f, onlyNew: e.target.checked })} /> New only</label>
         {tab === "mine" && !f.status && <label className="chip" style={{ display: "inline-flex", gap: 6, alignItems: "center" }}><input type="checkbox" checked={f.hideEnded} onChange={(e) => setF({ ...f, hideEnded: e.target.checked })} /> Hide ended</label>}
-        {dirty && <button className="btn btn-ghost btn-sm" onClick={() => setF({ ...f, q: "", status: "", priority: "", project: "", due: "", onlyNew: false })}><X size={14} /> Clear</button>}
+        {dirty && <button className="btn btn-ghost btn-sm" onClick={() => setF({ ...f, q: "", status: "", priority: "", project: "", due: "", kind: "", onlyNew: false })}><X size={14} /> Clear</button>}
       </div>
 
       <div className="card">
-        {!shown ? <Loading /> : shown.length === 0 ? <Empty title={dirty ? "No tasks match these filters" : "Nothing here"} /> : (
+        {!ordered ? <Loading /> : ordered.length === 0 ? <Empty title={dirty ? "No tasks match these filters" : "Nothing here"} /> : (
           <div className="table-wrap"><table className="table">
             <thead><tr><th>Task</th><th>Project</th><th>Priority</th><th>Status</th><th>Time</th><th>Due</th></tr></thead>
             <tbody>
-              {shown.map((t) => {
+              {ordered.map(({ task: t, nested }) => {
                 const isNew = unreadTaskIds.has(t.id);
                 const overdue = t.dueDate && t.dueDate.slice(0, 10) < isoDate() && !["ENDED", "COMPLETED"].includes(t.status);
                 return (
-                  <tr key={t.id} className="click" onClick={() => setOpenId(t.id)}>
+                  <tr key={t.id} className={`click${nested ? " nested-row" : ""}`} onClick={() => setOpenId(t.id)}>
                     <td style={{ fontWeight: isNew ? 700 : 600 }}>
-                      {isNew && <span className="dot-new" style={{ marginRight: 8 }} title="New" />}{t.title}
+                      {isNew && <span className="dot-new" style={{ marginRight: 8 }} title="New" />}{nested && <span className="hint">↳ </span>}{t.title}
+                      {t._count?.subtasks > 0 && <span className="badge b-gray" style={{ marginLeft: 8 }}>{t._count.subtasks} sub-task{t._count.subtasks > 1 ? "s" : ""}</span>}
                       {t.mine?.isRunning && <span className="timer-dot" style={{ display: "inline-block", marginLeft: 8 }} />}
                       {t.assignees?.filter((a: any) => a.status === "ASSIGNED").length > 1 && <span className="badge b-gray" style={{ marginLeft: 8 }}>Shared</span>}
                       {t.mine?.doneAt && t.status !== "COMPLETED" && t.status !== "ENDED" && <span className="badge b-green" style={{ marginLeft: 8 }}>My part done</span>}
+                      {t.parent && (
+                        <div className="sub-of">Sub-task of <a className="parent-link" onClick={(e) => { e.stopPropagation(); setOpenId(t.parent.id); }} title="Open the parent task">{t.parent.title}</a></div>
+                      )}
                     </td>
                     <td>{t.project.name}</td>
                     <td><PriorityBadge priority={t.priority} /></td>

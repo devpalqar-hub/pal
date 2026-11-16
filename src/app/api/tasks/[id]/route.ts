@@ -17,6 +17,7 @@ export const GET = authed<P>(async (_req, actor, { id }) => {
     include: {
       ...taskInclude,
       project: { select: { id: true, name: true } },
+      parent: { select: { id: true, title: true, status: true } },
       subtasks: { include: taskInclude, orderBy: { createdAt: "asc" } },
       events: { include: { actor: { select: { id: true, name: true } } }, orderBy: { id: "asc" } },
     },
@@ -25,8 +26,8 @@ export const GET = authed<P>(async (_req, actor, { id }) => {
 });
 
 /**
- * Edit details / assignees. Allowed for the creator and project managers;
- * anyone in the project may claim a task nobody is assigned to.
+ * Edit details / assignees. Details and removals: creator and project managers.
+ * Anyone in the project may add anyone else to the task.
  */
 export const PATCH = authed<P>(async (req, actor, { id }) => {
   const ctx = await taskCtx(id, actor);
@@ -42,8 +43,9 @@ export const PATCH = authed<P>(async (req, actor, { id }) => {
 
   const current = activeOf(task);
   const isEditor = task.createdById === actor.id || access.canManage;
-  const onlyClaim = !!next && current.length === 0 && next.length === 1 && next[0] === actor.id && Object.keys(fields).length === 0 && dueDate === undefined;
-  if (!isEditor && !onlyClaim) return forbidden();
+  // Any project member may add people to a task (but not remove anyone or edit details).
+  const onlyAdd = !!next && current.every((a) => next.includes(a.userId)) && Object.keys(fields).length === 0 && dueDate === undefined;
+  if (!isEditor && !onlyAdd) return forbidden();
 
   const data: Record<string, unknown> = { ...fields };
   if (dueDate !== undefined) data.dueDate = dueDate ? new Date(dueDate) : null;

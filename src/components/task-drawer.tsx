@@ -94,7 +94,9 @@ export function TaskDrawer({ taskId, onClose, onChanged }: { taskId: number; onC
   const waitingOn = active.filter((a: any) => !a.doneAt && a.userId !== user.id).length;
   const canDecline = mine && !mine.startedAt && !mine.workedSeconds && !mine.doneAt && !closed;
   const assignOptions = assignableMembers(project.members, user, canManage);
-  const lockedIds = active.filter((a: any) => a.startedAt || a.workedSeconds > 0 || a.doneAt).map((a: any) => a.userId);
+  const lockedIds = isEditor
+    ? active.filter((a: any) => a.startedAt || a.workedSeconds > 0 || a.doneAt).map((a: any) => a.userId)
+    : active.map((a: any) => a.userId); // non-editors can only add people
 
   const state = (a: any) => (a.doneAt ? ["Finished", "b-green"] : a.isRunning ? ["Working", "b-blue"] : a.startedAt ? ["Paused", "b-amber"] : ["Not started", "b-gray"]);
 
@@ -103,10 +105,11 @@ export function TaskDrawer({ taskId, onClose, onChanged }: { taskId: number; onC
       <div className="drawer">
         <div className="drawer-head">
           <div>
-            <div className="crumbs">{task.parentId ? <a style={{ cursor: "pointer" }} onClick={() => setOpenId(task.parentId)}>← Parent task</a> : task.project.name}</div>
+            <div className="crumbs">{task.project.name}{task.parent && <> <span>›</span> <a className="parent-link" onClick={() => setOpenId(task.parent.id)} title="Open the parent task">↑ {task.parent.title}</a></>}</div>
             <h2 style={{ fontSize: 20 }}>{task.title}</h2>
             <div className="actions" style={{ marginTop: 8 }}>
               <StatusBadge status={status} /> <PriorityBadge priority={task.priority} />
+              {task.parent && <span className="badge b-gray">Sub-task</span>}
               {task.runningCount > 0 && <span className="badge b-green"><span className="timer-dot" /> {task.runningCount} working now</span>}
               {active.length > 1 && <span className="badge b-gray"><Users size={12} /> Shared · {active.length}</span>}
             </div>
@@ -150,7 +153,7 @@ export function TaskDrawer({ taskId, onClose, onChanged }: { taskId: number; onC
           <div style={{ marginBottom: 24 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
               <h4>Assigned to ({active.length})</h4>
-              {isEditor && !closed && <button className="btn btn-sm" onClick={() => { setPicked(active.map((a: any) => a.userId)); setDialog("assignees"); }}><Users size={14} /> Manage</button>}
+              {!closed && <button className="btn btn-sm" onClick={() => { setPicked(active.map((a: any) => a.userId)); setDialog("assignees"); }}><Users size={14} /> Manage</button>}
             </div>
             {active.length === 0 && (
               <p className="hint">Nobody is assigned.{" "}

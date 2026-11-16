@@ -13,7 +13,7 @@ export const GET = authed(async (req, actor) => {
       ...(asReviewer ? { reviewerId: actor.id, status: "IN_REVIEW" } : { assignees: { some: { userId: actor.id, status: "ASSIGNED" } } }),
       ...(q.get("status") && { status: q.get("status") as TaskStatus }),
     },
-    include: { ...taskInclude, project: { select: { id: true, name: true } } },
+    include: { ...taskInclude, project: { select: { id: true, name: true } }, parent: { select: { id: true, title: true, status: true } } },
     orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
   });
   return NextResponse.json({ tasks: tasks.map((t) => withLiveTime(t, actor.id)) });

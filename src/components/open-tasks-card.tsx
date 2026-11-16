@@ -56,7 +56,7 @@ function OpenTasksCardImpl({ tasks, fetchedAt, onOpen, onChanged }: { tasks: any
                     {(isNew || unreadTaskIds.has(t.id)) && <span className="badge b-purple">New</span>}
                     {t.assignees?.filter((a: any) => a.status === "ASSIGNED").length > 1 && <span className="badge b-gray">Shared</span>}
                   </div>
-                  <div className="sub-line">{t.project.name} · <PriorityBadge priority={t.priority} /> · <Live task={t} base={fetchedAt} /></div>
+                  <div className="sub-line">{t.project.name}{t.parent && <> · <span title="Sub-task">↳ {t.parent.title}</span></>} · <PriorityBadge priority={t.priority} /> · <Live task={t} base={fetchedAt} /></div>
                 </div>
                 {t.mine?.isRunning ? (
                   <button className="btn btn-sm" disabled={busyId === t.id} onClick={(e) => act(e, t, "pause")}><Pause size={14} /> Pause</button>
