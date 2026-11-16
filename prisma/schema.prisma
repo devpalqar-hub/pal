@@ -48,19 +48,25 @@ model User {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  schedule       WorkSchedule?
-  salaries       SalaryRecord[]
-  roleChanges    RoleChange[]    @relation("RoleChangeTarget")
-  leaveAddOns    LeaveAddOn[]    @relation("LeaveAddOnUser")
-  attendanceDays AttendanceDay[]
-  leaveRequests  LeaveRequest[]
-  notifications  Notification[]
-  ownedProjects  Project[]       @relation("ProjectOwner")
-  memberships    ProjectMember[]
-  createdTasks   Task[]          @relation("TaskCreator")
-  assignedTasks  Task[]          @relation("TaskAssignee")
-  reviewTasks    Task[]          @relation("TaskReviewer")
-  taskEvents     TaskEvent[]
+  schedule          WorkSchedule?
+  salaries          SalaryRecord[]
+  roleChanges       RoleChange[]      @relation("RoleChangeTarget")
+  leaveAddOns       LeaveAddOn[]      @relation("LeaveAddOnUser")
+  attendanceDays    AttendanceDay[]
+  leaveRequests     LeaveRequest[]
+  notifications     Notification[]
+  taskAssignments   TaskAssignee[]
+  requestsSent      ServiceRequest[]  @relation("RequestRequester")
+  requestsReceived  ServiceRequest[]  @relation("RequestAssignee")
+  requestEvents     RequestEvent[]
+  meetingsOrganized Meeting[]         @relation("MeetingOrganizer")
+  meetingInvites    MeetingAttendee[]
+  ownedProjects     Project[]         @relation("ProjectOwner")
+  memberships       ProjectMember[]
+  createdTasks      Task[]            @relation("TaskCreator")
+  assignedTasks     Task[]            @relation("TaskAssignee")
+  reviewTasks       Task[]            @relation("TaskReviewer")
+  taskEvents        TaskEvent[]
 
   @@map("users")
 }
@@ -205,6 +211,7 @@ enum TaskPriority {
 enum TaskEventType {
   CREATED
   ASSIGNED
+  ASSIGNMENT_REJECTED
   STARTED
   PAUSED
   RESUMED
@@ -226,9 +233,11 @@ model Project {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
-  owner   User            @relation("ProjectOwner", fields: [ownerId], references: [id])
-  members ProjectMember[]
-  tasks   Task[]
+  owner    User             @relation("ProjectOwner", fields: [ownerId], references: [id])
+  members  ProjectMember[]
+  tasks    Task[]
+  requests ServiceRequest[]
+  meetings Meeting[]
 
   @@index([ownerId])
   @@map("projects")
@@ -273,13 +282,14 @@ model Task {
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
 
-  project  Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  parent   Task?       @relation("SubTasks", fields: [parentId], references: [id], onDelete: Cascade)
-  subtasks Task[]      @relation("SubTasks")
-  creator  User        @relation("TaskCreator", fields: [createdById], references: [id])
-  assignee User?       @relation("TaskAssignee", fields: [assigneeId], references: [id])
-  reviewer User?       @relation("TaskReviewer", fields: [reviewerId], references: [id])
-  events   TaskEvent[]
+  project   Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  parent    Task?          @relation("SubTasks", fields: [parentId], references: [id], onDelete: Cascade)
+  subtasks  Task[]         @relation("SubTasks")
+  creator   User           @relation("TaskCreator", fields: [createdById], references: [id])
+  assignee  User?          @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  reviewer  User?          @relation("TaskReviewer", fields: [reviewerId], references: [id])
+  events    TaskEvent[]
+  assignees TaskAssignee[]
 
   @@index([projectId, status])
   @@index([assigneeId, status])
@@ -347,6 +357,15 @@ enum NotificationType {
   TASK_APPROVED
   TASK_REJECTED
   TASK_ENDED
+  TASK_DECLINED
+  REQUEST_RECEIVED
+  REQUEST_REJECTED
+  REQUEST_RESUBMITTED
+  REQUEST_APPROVED
+  REQUEST_COMPLETED
+  MEETING_INVITE
+  MEETING_UPDATED
+  MEETING_CANCELLED
   LEAVE_DECIDED
 }
 
@@ -367,4 +386,166 @@ model Notification {
   @@index([userId, createdAt])
   @@index([userId, taskId])
   @@map("notifications")
+}
+
+enum AssigneeStatus {
+  ASSIGNED
+  REJECTED
+}
+
+/// One row per person on a task. Each assignee has their own timer; Task.workedSeconds is the sum of all of them.
+model TaskAssignee {
+  id            Int            @id @default(autoincrement())
+  taskId        Int
+  userId        Int
+  status        AssigneeStatus @default(ASSIGNED)
+  rejectReason  String?        @db.Text
+  rejectedAt    DateTime?
+  workedSeconds Int            @default(0)
+  /// Set while this person's timer is running
+  lastResumedAt DateTime?
+  startedAt     DateTime?
+  /// When this person finished their part
+  doneAt        DateTime?
+  createdAt     DateTime       @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, userId])
+  @@index([userId, status])
+  @@map("task_assignees")
+}
+
+// ───────────────────────── Requests (approval workflows) ─────────────────────────
+
+enum RequestType {
+  PROJECT_PLAN
+  DEPLOYMENT
+  REPO_CREATION
+  PULL_REQUEST
+  ACCESS_REQUEST
+  OTHER
+}
+
+/// PENDING -> (REJECTED -> RESUBMITTED ->)* APPROVED -> COMPLETE.  CANCELLED by the requester at any open stage.
+enum RequestStatus {
+  PENDING
+  REJECTED
+  RESUBMITTED
+  APPROVED
+  COMPLETE
+  CANCELLED
+}
+
+enum RequestEventType {
+  SENT
+  REJECTED
+  RESUBMITTED
+  APPROVED
+  COMPLETED
+  CANCELLED
+  REASSIGNED
+}
+
+model ServiceRequest {
+  id            Int           @id @default(autoincrement())
+  type          RequestType
+  title         String
+  description   String?       @db.Text
+  /// Answers to the type-specific form (see src/lib/request-types.ts)
+  data          Json
+  priority      TaskPriority  @default(MEDIUM)
+  status        RequestStatus @default(PENDING)
+  projectId     Int?
+  requesterId   Int
+  assigneeId    Int
+  dueDate       DateTime?     @db.Date
+  /// Latest note from the assignee (reject reason / approval or completion note)
+  decisionNote  String?       @db.Text
+  /// e.g. the repository URL or deployment link once the work is done
+  resultUrl     String?
+  resubmitCount Int           @default(0)
+  decidedAt     DateTime?
+  completedAt   DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  requester User           @relation("RequestRequester", fields: [requesterId], references: [id])
+  assignee  User           @relation("RequestAssignee", fields: [assigneeId], references: [id])
+  project   Project?       @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  events    RequestEvent[]
+
+  @@index([assigneeId, status])
+  @@index([requesterId, status])
+  @@map("service_requests")
+}
+
+model RequestEvent {
+  id        Int              @id @default(autoincrement())
+  requestId Int
+  type      RequestEventType
+  actorId   Int
+  note      String?          @db.Text
+  at        DateTime         @default(now())
+
+  request ServiceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  actor   User           @relation(fields: [actorId], references: [id])
+
+  @@index([requestId, at])
+  @@map("request_events")
+}
+
+// ───────────────────────── Meetings ─────────────────────────
+
+enum MeetingStatus {
+  SCHEDULED
+  CANCELLED
+}
+
+enum RsvpStatus {
+  INVITED
+  ACCEPTED
+  DECLINED
+  TENTATIVE
+}
+
+model Meeting {
+  id          Int           @id @default(autoincrement())
+  title       String
+  /// Rich-text agenda (sanitised HTML)
+  agenda      String?       @db.Text
+  /// Video-call / meeting URL
+  link        String?
+  location    String?
+  startsAt    DateTime
+  endsAt      DateTime
+  status      MeetingStatus @default(SCHEDULED)
+  projectId   Int?
+  organizerId Int
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  organizer User              @relation("MeetingOrganizer", fields: [organizerId], references: [id])
+  project   Project?          @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  attendees MeetingAttendee[]
+
+  @@index([startsAt])
+  @@index([organizerId])
+  @@map("meetings")
+}
+
+model MeetingAttendee {
+  id          Int        @id @default(autoincrement())
+  meetingId   Int
+  userId      Int
+  response    RsvpStatus @default(INVITED)
+  respondedAt DateTime?
+
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([meetingId, userId])
+  @@index([userId])
+  @@map("meeting_attendees")
 }

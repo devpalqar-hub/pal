@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { Bell, CalendarClock, CalendarOff, CheckCircle2, ClipboardCheck, Eye, Flag, FileCheck2, FileX2, FilePlus2, Pin, ThumbsUp, Undo2, Ban, type LucideIcon } from "lucide-react";
 import { api } from "./api";
 import { desktopNotify } from "./desktop-notify";
 import { useToast } from "@/components/ui";
@@ -23,6 +24,8 @@ interface Ctx {
   latest: Notice[];
   /** task ids that have unread notifications (for "New" markers) */
   unreadTaskIds: Set<number>;
+  /** requests that need my action (to approve, to fix, to complete) */
+  requestActions: number;
   refresh: () => Promise<void>;
   markRead: (opts: { ids?: number[]; taskId?: number; all?: boolean }) => Promise<void>;
 }
@@ -34,11 +37,13 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const toast = useToast();
   const [unread, setUnread] = useState(0);
   const [latest, setLatest] = useState<Notice[]>([]);
+  const [requestActions, setRequestActions] = useState(0);
   const lastId = useRef<number | null>(null);
 
   const refresh = useCallback(async () => {
     try {
-      const r = await api<{ notifications: Notice[]; unread: number }>("/api/notifications?limit=20");
+      const [r, rq] = await Promise.all([api<{ notifications: Notice[]; unread: number }>("/api/notifications?limit=20"), api<{ actionNeeded: number }>("/api/requests/summary").catch(() => ({ actionNeeded: 0 }))]);
+      setRequestActions(rq.actionNeeded);
       const newest = r.notifications[0]?.id ?? 0;
       if (lastId.current !== null && newest > lastId.current) {
         const fresh = r.notifications.filter((n) => n.id > lastId.current! && !n.readAt);
@@ -69,7 +74,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const unreadTaskIds = new Set(latest.filter((n) => !n.readAt && n.taskId).map((n) => n.taskId!));
-  return <C.Provider value={{ unread, latest, unreadTaskIds, refresh, markRead }}>{children}</C.Provider>;
+  return <C.Provider value={{ unread, latest, unreadTaskIds, requestActions, refresh, markRead }}>{children}</C.Provider>;
 }
 
 export function useNotifications() {
@@ -78,6 +83,9 @@ export function useNotifications() {
   return c;
 }
 
-export const NOTICE_ICON: Record<string, string> = {
-  TASK_ASSIGNED: "📌", TASK_REVIEW_REQUESTED: "👀", TASK_COMPLETED: "✅", TASK_APPROVED: "🎉", TASK_REJECTED: "↩️", TASK_ENDED: "🏁", LEAVE_DECIDED: "🌴",
+export const NOTICE_ICON: Record<string, LucideIcon> = {
+  TASK_ASSIGNED: Pin, TASK_REVIEW_REQUESTED: Eye, TASK_COMPLETED: CheckCircle2, TASK_APPROVED: ThumbsUp, TASK_REJECTED: Undo2, TASK_ENDED: Flag, TASK_DECLINED: Ban,
+  REQUEST_RECEIVED: FilePlus2, REQUEST_REJECTED: FileX2, REQUEST_RESUBMITTED: ClipboardCheck, REQUEST_APPROVED: FileCheck2, REQUEST_COMPLETED: FileCheck2,
+  MEETING_INVITE: CalendarClock, MEETING_UPDATED: CalendarClock, MEETING_CANCELLED: CalendarClock, LEAVE_DECIDED: CalendarOff,
 };
+export const noticeIcon = (type: string): LucideIcon => NOTICE_ICON[type] ?? Bell;

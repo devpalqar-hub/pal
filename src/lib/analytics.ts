@@ -22,18 +22,32 @@ export function teamRoles(actor: AuthUser): Role[] {
   return (Object.keys(ROLE_RANK) as Role[]).filter((r) => actor.role === "SUPER_ADMIN" || ROLE_RANK[r] < ROLE_RANK[actor.role]);
 }
 
+/** A person's view of a shared task: done with their part counts as completed for them. */
+function personalStatus(taskStatus: string, doneAt: Date | null) {
+  if (taskStatus === "ENDED" || taskStatus === "IN_REVIEW" || taskStatus === "COMPLETED") return taskStatus;
+  return doneAt ? "COMPLETED" : taskStatus;
+}
+const MINE = { status: "ASSIGNED" as const };
+const assigneeSelect = { userId: true, doneAt: true, task: { select: { status: true, dueDate: true, completedAt: true } } };
+
 /** Personal analytics: 7-day attendance, task breakdown, leave balance. */
 export async function personalAnalytics(userId: number) {
   const days = lastDays(7);
   const today = days[days.length - 1];
-  const [schedule, att, byStatus, overdue, completedWeek, balance] = await Promise.all([
+  const [schedule, att, rows, balance] = await Promise.all([
     prisma.workSchedule.findUnique({ where: { userId } }),
     prisma.attendanceDay.findMany({ where: { userId, date: { gte: days[0] } }, include: { events: { orderBy: { at: "asc" } } } }),
-    prisma.task.groupBy({ by: ["status"], where: { assigneeId: userId }, _count: true }),
-    prisma.task.count({ where: { assigneeId: userId, status: { in: [...OPEN] }, dueDate: { lt: today } } }),
-    prisma.task.count({ where: { assigneeId: userId, completedAt: { gte: days[0] } } }),
+    prisma.taskAssignee.findMany({ where: { userId, ...MINE }, select: assigneeSelect }),
     leaveBalance(userId),
   ]);
+  const counts: Record<string, number> = {};
+  let overdue = 0, completedWeek = 0;
+  for (const r of rows) {
+    const st = personalStatus(r.task.status, r.doneAt);
+    counts[st] = (counts[st] ?? 0) + 1;
+    if ((OPEN as readonly string[]).includes(st) && r.task.dueDate && r.task.dueDate < today) overdue++;
+    if (r.doneAt && r.doneAt >= days[0]) completedWeek++;
+  }
   const byDay = new Map(att.map((a) => [key(a.date), a]));
   const week = days.map((d) => {
     const a = byDay.get(key(d));
@@ -41,7 +55,6 @@ export async function personalAnalytics(userId: number) {
     const worked = a ? (isToday ? Math.floor(totals(a.events).work) : a.totalWorkMinutes) : 0;
     return { date: key(d), workedMinutes: worked, status: a?.status ?? null, isLate: a?.isLate ?? false, isWorkingDay: !schedule || (schedule.workingDays as number[]).includes(d.getUTCDay()) };
   });
-  const counts = Object.fromEntries(byStatus.map((g) => [g.status, g._count]));
   const todayAtt = byDay.get(key(today));
   return {
     requiredMinutes: schedule?.requiredMinutes ?? 480,
@@ -70,11 +83,9 @@ export async function teamAnalytics(actor: AuthUser) {
   const days = lastDays(7);
   const today = days[6];
 
-  const [att, taskGroups, overdue, completed, leaves] = await Promise.all([
+  const [att, assigned, leaves] = await Promise.all([
     prisma.attendanceDay.findMany({ where: { userId: { in: ids }, date: { gte: days[0] } }, include: { events: { orderBy: { at: "asc" } } } }),
-    prisma.task.groupBy({ by: ["assigneeId", "status"], where: { assigneeId: { in: ids } }, _count: true }),
-    prisma.task.groupBy({ by: ["assigneeId"], where: { assigneeId: { in: ids }, status: { in: [...OPEN] }, dueDate: { lt: today } }, _count: true }),
-    prisma.task.groupBy({ by: ["assigneeId"], where: { assigneeId: { in: ids }, completedAt: { gte: days[0] } }, _count: true }),
+    prisma.taskAssignee.findMany({ where: { userId: { in: ids }, ...MINE }, select: assigneeSelect }),
     prisma.leaveRequest.findMany({ where: { userId: { in: ids }, status: "APPROVED", startDate: { lte: today }, endDate: { gte: today } }, select: { userId: true, type: true, halfDay: true } }),
   ]);
 
@@ -84,16 +95,19 @@ export async function teamAnalytics(actor: AuthUser) {
     attBy.get(a.userId)!.set(key(a.date), a);
   });
   const onLeave = new Map(leaves.map((l) => [l.userId, l]));
-  const overdueBy = new Map(overdue.map((g) => [g.assigneeId!, g._count]));
-  const completedBy = new Map(completed.map((g) => [g.assigneeId!, g._count]));
+  const overdueBy = new Map<number, number>();
+  const completedBy = new Map<number, number>();
   const tasksBy = new Map<number, Record<string, number>>();
   const teamTasks: Record<string, number> = {};
-  taskGroups.forEach((g) => {
-    const m = tasksBy.get(g.assigneeId!) ?? {};
-    m[g.status] = g._count;
-    tasksBy.set(g.assigneeId!, m);
-    teamTasks[g.status] = (teamTasks[g.status] ?? 0) + g._count;
-  });
+  for (const r of assigned) {
+    const st = personalStatus(r.task.status, r.doneAt);
+    const m = tasksBy.get(r.userId) ?? {};
+    m[st] = (m[st] ?? 0) + 1;
+    tasksBy.set(r.userId, m);
+    teamTasks[st] = (teamTasks[st] ?? 0) + 1;
+    if ((OPEN as readonly string[]).includes(st) && r.task.dueDate && r.task.dueDate < today) overdueBy.set(r.userId, (overdueBy.get(r.userId) ?? 0) + 1);
+    if (r.doneAt && r.doneAt >= days[0]) completedBy.set(r.userId, (completedBy.get(r.userId) ?? 0) + 1);
+  }
 
   const summary = { total: members.length, working: 0, onBreak: 0, checkedOut: 0, notCheckedIn: 0, late: 0, onLeave: 0 };
   const rows = members.map((m) => {

@@ -193,7 +193,7 @@ const extraSchemas = {
     properties: {
       title: str, description: str, estimatedMinutes: int, dueDate: { type: "string", format: "date" },
       priority: { type: "string", enum: ["LOW", "MEDIUM", "HIGH", "URGENT"], default: "MEDIUM" },
-      parentId: int, assigneeId: { type: "integer", nullable: true },
+      parentId: int, assigneeIds: { type: "array", items: int, description: "one or several people; each has their own timer" },
     },
   },
 };
@@ -263,6 +263,35 @@ const notifyPaths = {
   "/api/notifications/preferences": { put: op("Notifications", "Turn email copies on/off", { body: { type: "object", required: ["emailEnabled"], properties: { emailEnabled: { type: "boolean" } } } }) },
 };
 
+const flowPaths = {
+  "/api/tasks/{id}/reject": { post: op("Task workflow", "Decline a task assigned to you, with a reason sent to its creator (only before you start)", { id: true, body: { type: "object", required: ["reason"], properties: { reason: str } }, res: taskRes }) },
+  "/api/directory": { get: op("Users", "Everyone active (name, role, title) for pickers", { query: [q("q")] }) },
+  "/api/requests": {
+    get: op("Requests", "?box=incoming|sent|all  ?status= ?type= ?q=", { query: [q("box"), q("status"), q("type"), q("q")] }),
+    post: op("Requests", "Send a request (PROJECT_PLAN, DEPLOYMENT, REPO_CREATION, PULL_REQUEST, ACCESS_REQUEST, OTHER) to a person; each type has its own form fields in `data`", {
+      status: "201",
+      body: { type: "object", required: ["type", "title", "assigneeId"], properties: { type: str, title: str, description: str, priority: str, assigneeId: int, projectId: int, dueDate: str, data: { type: "object" } } },
+    }),
+  },
+  "/api/requests/summary": { get: op("Requests", "Counts that need my action") },
+  "/api/requests/{id}": { get: op("Requests", "Request with its full history", { id: true }) },
+  "/api/requests/{id}/{action}": {
+    post: { ...op("Requests", "Flow: PENDING → approve/reject → APPROVED → complete; REJECTED → resubmit → RESUBMITTED. Actions: approve, reject (note required), complete, resubmit, cancel, reassign", { body: { type: "object", properties: { note: str, resultUrl: str, assigneeId: int } } }),
+      parameters: [idParamNum("id"), { name: "action", in: "path", required: true, schema: { type: "string", enum: ["approve", "reject", "complete", "resubmit", "cancel", "reassign"] } }] },
+  },
+  "/api/meetings": {
+    get: op("Meetings", "Meetings I organise or am invited to (?scope=upcoming|past|all ?projectId=)", { query: [q("scope"), q("projectId", "integer")] }),
+    post: op("Meetings", "Schedule a meeting; invitees are notified and overlaps are returned as `conflicts`", {
+      status: "201",
+      body: { type: "object", required: ["title", "startsAt", "endsAt"], properties: { title: str, agenda: str, link: str, location: str, startsAt: { type: "string", format: "date-time" }, endsAt: { type: "string", format: "date-time" }, projectId: int, attendeeIds: { type: "array", items: int } } },
+    }),
+  },
+  "/api/meetings/{id}": { get: op("Meetings", "Meeting detail", { id: true }), patch: op("Meetings", "Edit (organiser); a time change re-opens RSVPs and notifies invitees", { id: true, body: { type: "object" } }) },
+  "/api/meetings/{id}/respond": { post: op("Meetings", "RSVP", { id: true, body: { type: "object", required: ["response"], properties: { response: { type: "string", enum: ["ACCEPTED", "DECLINED", "TENTATIVE"] } } } }) },
+  "/api/meetings/{id}/cancel": { post: op("Meetings", "Cancel (organiser)", { id: true, body: { type: "object", properties: { reason: str } } }) },
+};
+function idParamNum(name: string) { return { name, in: "path", required: true, schema: { type: "integer" } }; }
+
 const mailPaths = {
   "/api/leaves": {
     get: op("Leave", "My leave requests (?scope=team for requests you can approve, ?status=)", { query: [q("scope"), q("status")] }),
@@ -292,5 +321,5 @@ const mailPaths = {
 export const openApiSpec = {
   ...base,
   components: { ...base.components, schemas: { ...base.components.schemas, ...extraSchemas } },
-  paths: { ...base.paths, ...extraPaths, ...mailPaths, ...notifyPaths },
+  paths: { ...base.paths, ...extraPaths, ...mailPaths, ...notifyPaths, ...flowPaths },
 };

@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Mail, LayoutDashboard, Clock, FolderKanban, CheckSquare, Users, LogOut, Menu, BookOpen, CalendarOff, BarChart3, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Mail, LayoutDashboard, Clock, FolderKanban, CheckSquare, Users, LogOut, Menu, BookOpen, CalendarOff, CalendarClock, FileCheck2, BarChart3, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useAuth } from "@/lib/client/auth";
 import { MailProvider, useMail } from "@/lib/client/mail";
 import { NotificationProvider, useNotifications } from "@/lib/client/notifications";
@@ -50,6 +50,8 @@ function Frame({ children }: { children: ReactNode }) {
         { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
         { href: "/tasks", label: "My Tasks", icon: CheckSquare, badge: notices.unreadTaskIds.size },
         { href: "/projects", label: "Projects", icon: FolderKanban },
+        { href: "/requests", label: "Requests", icon: FileCheck2, badge: notices.requestActions },
+        { href: "/meetings", label: "Meetings", icon: CalendarClock },
         { href: "/attendance", label: "Attendance", icon: Clock },
         { href: "/leave", label: "Leave", icon: CalendarOff },
         ...(mail.configured !== false ? [{ href: "/mail", label: "Mail", icon: Mail, badge: mail.unseen }] : []),

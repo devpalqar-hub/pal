@@ -7,6 +7,8 @@ import { Plus, Users, CheckSquare, CalendarDays } from "lucide-react";
 import { api } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth";
 import { fmtDate, ROLE_RANK } from "@/lib/client/format";
+import { RichTextEditor } from "@/components/rich-text";
+import { toPlain } from "@/lib/client/rich";
 import { Empty, Field, Loading, Modal, PageHeader, Spinner, StatusBadge, useToast } from "@/components/ui";
 
 export default function ProjectsPage() {
@@ -49,7 +51,7 @@ export default function ProjectsPage() {
               <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
                 <h3 style={{ fontSize: 16 }}>{p.name}</h3><StatusBadge status={p.status} />
               </div>
-              <p className="hint" style={{ minHeight: 40, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{p.description || "No description"}</p>
+              <p className="hint" style={{ minHeight: 40, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{toPlain(p.description) || "No description"}</p>
               <div className="task-meta" style={{ marginTop: 14 }}>
                 <span><Users size={14} style={{ verticalAlign: -2 }} /> {p._count.members}</span>
                 <span><CheckSquare size={14} style={{ verticalAlign: -2 }} /> {p._count.tasks}</span>
@@ -67,7 +69,7 @@ export default function ProjectsPage() {
         }>
           <form id="proj" onSubmit={create}>
             <Field label="Project name"><input className="input" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} required autoFocus /></Field>
-            <Field label="Description" hint="Optional"><textarea className="textarea" value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} /></Field>
+            <Field label="Description" hint="Optional — supports formatting"><RichTextEditor value={f.description} onChange={(html) => setF((s) => ({ ...s, description: html }))} placeholder="What is this project about?" /></Field>
             <div className="row">
               <Field label="Start date" hint="Optional"><input type="date" className="input" value={f.startDate} onChange={(e) => setF({ ...f, startDate: e.target.value })} /></Field>
               <Field label="Due date" hint="Optional"><input type="date" className="input" value={f.dueDate} onChange={(e) => setF({ ...f, dueDate: e.target.value })} /></Field>

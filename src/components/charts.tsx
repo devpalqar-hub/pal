@@ -74,7 +74,7 @@ export function WeekBars({ days, target, height = 130 }: { days: { label: string
           return (
             <div key={i} className="wb-col" style={{ width: `${W}%` }}
               onMouseMove={(e) => show(e.nativeEvent.offsetX + (e.currentTarget as HTMLElement).offsetLeft, Math.max(0, height - h - 8), <><b>{d.sub ?? d.label}</b><br />{fmtH(d.minutes)} worked</>)}>
-              <div className="wb-bar" style={{ height: Math.max(d.minutes ? 3 : 0, h), background: d.muted ? "#cbd5e1" : d.highlight ? "var(--primary)" : "#a5b4fc" }} />
+              <div className="wb-bar" style={{ height: Math.max(d.minutes ? 3 : 0, h), background: d.muted ? "#cbd5e1" : d.highlight ? "var(--primary)" : "#8fb0d6" }} />
             </div>
           );
         })}
@@ -152,7 +152,7 @@ export function MiniBars({ values, target, labels }: { values: number[]; target:
   return (
     <div className="minibars" role="img" aria-label={`Last ${values.length} days`}>
       {values.map((v, i) => (
-        <span key={i} title={`${labels?.[i] ?? ""} ${fmtH(v)}`.trim()} style={{ height: `${Math.max(v ? 8 : 4, (v / max) * 100)}%`, background: v === 0 ? "#e2e8f0" : v >= target ? "#10b981" : "#a5b4fc" }} />
+        <span key={i} title={`${labels?.[i] ?? ""} ${fmtH(v)}`.trim()} style={{ height: `${Math.max(v ? 8 : 4, (v / max) * 100)}%`, background: v === 0 ? "#e2e8f0" : v >= target ? "#10b981" : "#8fb0d6" }} />
       ))}
     </div>
   );

@@ -6,6 +6,7 @@ import { api, apiDownload } from "@/lib/client/api";
 import { useMail } from "@/lib/client/mail";
 import { fmtDateTime } from "@/lib/client/format";
 import { Field, Loading, Modal, Spinner, useToast } from "./ui";
+import { RichTextEditor } from "./rich-text";
 
 const fmtSize = (b: number) => (b > 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
 
@@ -95,8 +96,9 @@ export function ComposeModal({ initial, onClose }: { initial: { to?: string; sub
     e.preventDefault();
     setBusy(true);
     try {
+      if (!f.text && files.length === 0) { toast("Write a message or attach a file", true); setBusy(false); return; }
       const fd = new FormData();
-      fd.set("to", f.to); fd.set("cc", f.cc); fd.set("subject", f.subject); fd.set("text", f.text);
+      fd.set("to", f.to); fd.set("cc", f.cc); fd.set("subject", f.subject); fd.set("html", f.text);
       files.forEach((x) => fd.append("files", x));
       await api("/api/mail/send", { body: fd });
       toast("Email sent");
@@ -114,7 +116,7 @@ export function ComposeModal({ initial, onClose }: { initial: { to?: string; sub
         <Field label="To" hint="Separate several addresses with commas"><input className="input" value={f.to} onChange={(e) => setF({ ...f, to: e.target.value })} required autoFocus={!initial.to} placeholder="name@company.com" /></Field>
         <Field label="Cc"><input className="input" value={f.cc} onChange={(e) => setF({ ...f, cc: e.target.value })} /></Field>
         <Field label="Subject"><input className="input" value={f.subject} onChange={(e) => setF({ ...f, subject: e.target.value })} /></Field>
-        <Field label="Message"><textarea className="textarea" style={{ minHeight: 160 }} value={f.text} onChange={(e) => setF({ ...f, text: e.target.value })} required autoFocus={!!initial.to} /></Field>
+        <Field label="Message"><RichTextEditor value={f.text} onChange={(html) => setF((s) => ({ ...s, text: html }))} minHeight={180} autoFocus={!!initial.to} placeholder="Write your message…" /></Field>
         <input ref={pick} type="file" multiple hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
         <button type="button" className="btn btn-sm" onClick={() => pick.current?.click()}><Paperclip size={14} /> Attach files</button>
         {files.length > 0 && (

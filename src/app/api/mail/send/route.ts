@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { authed } from "@/lib/http";
 import { sendMailSchema } from "@/lib/validation";
+import { sanitizeRich, htmlToText } from "@/lib/html";
 import { getMailbox, MailError, sendMail } from "@/lib/mail";
 
 const MAX_FILES = 10;
@@ -16,17 +17,19 @@ export const POST = authed(async (req, actor) => {
     to: list(fd.get("to")),
     cc: list(fd.get("cc")),
     subject: (fd.get("subject") as string) ?? "",
-    text: (fd.get("text") as string) ?? "",
+    html: sanitizeRich((fd.get("html") as string) ?? ""),
   });
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
+  const text = htmlToText(parsed.data.html);
   const files = fd.getAll("files").filter((f): f is File => typeof f !== "string" && f.size > 0);
+  if (!text && files.length === 0) return NextResponse.json({ error: "Write a message or attach a file" }, { status: 400 });
   if (files.length > MAX_FILES) return NextResponse.json({ error: `Attach at most ${MAX_FILES} files` }, { status: 400 });
   if (files.reduce((n, f) => n + f.size, 0) > MAX_TOTAL_BYTES) return NextResponse.json({ error: "Attachments exceed 20 MB in total" }, { status: 413 });
 
   try {
     const attachments = await Promise.all(files.map(async (f) => ({ filename: f.name, content: Buffer.from(await f.arrayBuffer()), contentType: f.type || undefined })));
-    await sendMail(await getMailbox(actor.id), { ...parsed.data, attachments });
+    await sendMail(await getMailbox(actor.id), { to: parsed.data.to, cc: parsed.data.cc, subject: parsed.data.subject, html: parsed.data.html || undefined, text, attachments });
     return NextResponse.json({ ok: true });
   } catch (e) {
     if (e instanceof MailError) return NextResponse.json({ error: e.message }, { status: e.status });

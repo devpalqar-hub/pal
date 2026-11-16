@@ -162,7 +162,7 @@ export async function readAttachment(box: Mailbox, uid: number, index: number) {
   });
 }
 
-export interface OutgoingMail { to: string[]; cc?: string[]; subject: string; text: string; attachments?: { filename: string; content: Buffer; contentType?: string }[] }
+export interface OutgoingMail { to: string[]; cc?: string[]; subject: string; text: string; html?: string; attachments?: { filename: string; content: Buffer; contentType?: string }[] }
 
 export async function sendMail(box: Mailbox, msg: OutgoingMail) {
   const transport = nodemailer.createTransport({
@@ -175,7 +175,11 @@ export async function sendMail(box: Mailbox, msg: OutgoingMail) {
     socketTimeout: 20_000,
   });
   try {
-    await transport.sendMail({ from: { name: box.name, address: box.email }, ...msg });
+    await transport.sendMail({
+      from: { name: box.name, address: box.email },
+      ...msg,
+      html: msg.html ? `<div style="font:14px/1.5 -apple-system,Segoe UI,Arial,sans-serif;color:#1f2937">${msg.html}</div>` : undefined,
+    });
   } catch (e) {
     const code = (e as { responseCode?: number }).responseCode;
     throw new MailError(code === 535 ? "Mailbox sign-in failed — check the email and password" : "Could not send the email");
