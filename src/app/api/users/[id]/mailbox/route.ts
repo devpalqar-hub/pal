@@ -26,7 +26,7 @@ export const PUT = authed<P>(async (req, actor, { id }) => {
   try {
     await verifyLogin(mailEmail, mailPassword);
   } catch (e) {
-    if (e instanceof MailError) return NextResponse.json({ error: e.message }, { status: e.status === 401 ? 400 : e.status });
+    if (e instanceof MailError) return NextResponse.json({ error: e.message }, { status: e.status });
     throw e;
   }
   await prisma.user.update({ where: { id: uid }, data: { mailEmail, mailPasswordEnc: encryptSecret(mailPassword) } });

@@ -24,7 +24,6 @@
     "lucide-react": "^1.73.0",
     "mailparser": "^3.14.3",
     "next": "16.4.6",
-    "next-swagger-doc": "^0.5.0",
     "nodemailer": "^10.5.0",
     "prisma": "^6.19.3",
     "react": "19.3.0",

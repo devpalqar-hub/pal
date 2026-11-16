@@ -70,7 +70,8 @@ async function withImap<T>(box: Pick<Mailbox, "email" | "password">, fn: (c: Ima
     await client.connect();
   } catch (e) {
     const auth = (e as { authenticationFailed?: boolean }).authenticationFailed;
-    throw new MailError(auth ? "Mailbox sign-in failed — check the email and password" : `Cannot reach mail server (${HOST()})`, auth ? 401 : 502);
+    // 422, not 401: a bad mailbox password must never look like an expired PAL login
+    throw new MailError(auth ? "Mailbox sign-in failed — check the email and password" : `Cannot reach mail server (${HOST()})`, auth ? 422 : 502);
   }
   try {
     return await fn(client);
@@ -182,6 +183,6 @@ export async function sendMail(box: Mailbox, msg: OutgoingMail) {
     });
   } catch (e) {
     const code = (e as { responseCode?: number }).responseCode;
-    throw new MailError(code === 535 ? "Mailbox sign-in failed — check the email and password" : "Could not send the email");
+    throw new MailError(code === 535 ? "Mailbox sign-in failed — check the email and password" : "Could not send the email", code === 535 ? 422 : 502);
   }
 }

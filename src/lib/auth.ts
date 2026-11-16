@@ -27,7 +27,8 @@ export async function getAuthUser(req: Request): Promise<AuthUser | null> {
   return { id: user.id, email: user.email, name: user.name, role: user.role };
 }
 
-export const unauthorized = () => NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+/** `code` lets the browser tell a genuinely invalid session apart from any other 401-ish failure. */
+export const unauthorized = () => NextResponse.json({ error: "Unauthorized", code: "SESSION_INVALID" }, { status: 401 });
 export const forbidden = () => NextResponse.json({ error: "Forbidden" }, { status: 403 });
 export const notFound = (what = "Not found") => NextResponse.json({ error: what }, { status: 404 });
 export const badRequest = (error: unknown) => NextResponse.json({ error }, { status: 400 });

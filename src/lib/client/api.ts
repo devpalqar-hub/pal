@@ -47,7 +47,7 @@ export async function api<T = any>(path: string, opts: { method?: string; body?:
   });
   const data = await res.json().catch(() => null);
   if (!res.ok) {
-    if (res.status === 401 && token && !path.startsWith("/api/auth")) {
+    if (res.status === 401 && token && (data as { code?: string } | null)?.code === "SESSION_INVALID") {
       tokenStore.clear();
       // eslint-disable-next-line @next/next/no-location-assign-relative-destination
       if (typeof window !== "undefined") window.location.href = "/login";

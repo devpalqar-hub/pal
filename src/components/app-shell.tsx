@@ -12,11 +12,22 @@ import { Avatar, RoleBadge, Spinner } from "@/components/ui";
 import { ROLE_LABEL, ROLE_RANK } from "@/lib/client/format";
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, loading, error, retry, logout } = useAuth();
   const router = useRouter();
   useEffect(() => {
-    if (!loading && !user) router.replace("/login");
-  }, [user, loading, router]);
+    if (!loading && !user && !error) router.replace("/login");
+  }, [user, loading, error, router]);
+  if (!loading && !user && error) {
+    return (
+      <div className="center-screen">
+        <div className="card card-pad" style={{ maxWidth: 380, textAlign: "center" }}>
+          <h3 style={{ marginBottom: 6 }}>Connection problem</h3>
+          <p className="hint" style={{ marginBottom: 16 }}>{error} You are still signed in — try again.</p>
+          <div className="actions" style={{ justifyContent: "center" }}><button className="btn btn-primary" onClick={retry}>Try again</button><button className="btn" onClick={logout}>Sign out</button></div>
+        </div>
+      </div>
+    );
+  }
   if (loading || !user) return <div className="center-screen"><Spinner /></div>;
   return <MailProvider><NotificationProvider><Frame>{children}</Frame></NotificationProvider></MailProvider>;
 }
