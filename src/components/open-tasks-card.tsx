@@ -9,7 +9,7 @@ import { useNotifications } from "@/lib/client/notifications";
 import { PriorityBadge, useToast } from "./ui";
 
 /** Shows MY tracked time on the task (the task total can include other people). */
-function Live({ task, base }: { task: any; base: number }) {
+export function Live({ task, base }: { task: any; base: number }) {
   const [now, setNow] = useState(() => base);
   const mine = task.mine;
   useEffect(() => {
@@ -19,6 +19,37 @@ function Live({ task, base }: { task: any; base: number }) {
   }, [mine?.isRunning]);
   const secs = (mine?.liveSeconds ?? 0) + (mine?.isRunning ? Math.max(0, now - base) / 1000 : 0);
   return <span className="mono">{fmtDuration(secs, true)}</span>;
+}
+
+/** Banner for the task(s) whose timer is running right now. */
+export function RunningTaskBanner({ tasks, fetchedAt, onOpen, onChanged }: { tasks: any[]; fetchedAt: number; onOpen: (id: number) => void; onChanged: () => void }) {
+  const toast = useToast();
+  const [busyId, setBusyId] = useState<number | null>(null);
+  const running = tasks.filter((t) => t.mine?.isRunning);
+  if (running.length === 0) return null;
+  async function pause(e: React.MouseEvent, t: any) {
+    e.stopPropagation();
+    setBusyId(t.id);
+    try { await api(`/api/tasks/${t.id}/pause`, { method: "POST" }); onChanged(); }
+    catch (err) { toast(err instanceof Error ? err.message : "Failed", true); }
+    finally { setBusyId(null); }
+  }
+  return (
+    <div className="card">
+      <div className="card-head tight"><h3><span className="timer-dot" /> Now running</h3></div>
+      <div className="list">
+        {running.map((t) => (
+          <div key={t.id} className="list-row" onClick={() => onOpen(t.id)}>
+            <div className="grow-min">
+              <div className="title-line"><span className="t">{t.title}</span></div>
+              <div className="sub-line">{t.project.name} · <PriorityBadge priority={t.priority} /> · <Live task={t} base={fetchedAt} /></div>
+            </div>
+            <button className="btn btn-sm" disabled={busyId === t.id} onClick={(e) => pause(e, t)}><Pause size={14} /> Pause</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 /** Open tasks with inline Start / Pause. Click a row for the full task panel. */

@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Mail, LayoutDashboard, Clock, FolderKanban, CheckSquare, Users, LogOut, Menu, BookOpen, CalendarOff, CalendarClock, FileCheck2, BarChart3, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Mail, LayoutDashboard, Clock, FolderKanban, CheckSquare, Users, LogOut, Menu, Sparkles, CalendarOff, CalendarClock, FileCheck2, BarChart3, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useAuth } from "@/lib/client/auth";
 import { MailProvider, useMail } from "@/lib/client/mail";
 import { NotificationProvider, useNotifications } from "@/lib/client/notifications";
@@ -61,6 +61,7 @@ function Frame({ children }: { children: ReactNode }) {
         { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
         { href: "/tasks", label: "My Tasks", icon: CheckSquare, badge: notices.unreadTaskIds.size },
         { href: "/projects", label: "Projects", icon: FolderKanban },
+        { href: "/assistant", label: "AI assistant", icon: Sparkles },
         { href: "/requests", label: "Requests", icon: FileCheck2, badge: notices.requestActions },
         { href: "/meetings", label: "Meetings", icon: CalendarClock },
         { href: "/attendance", label: "Attendance", icon: Clock },
@@ -95,8 +96,6 @@ function Frame({ children }: { children: ReactNode }) {
               ))}
             </div>
           ))}
-          <div className="nav-label lbl">Help</div>
-          <a href="/docs" target="_blank" rel="noreferrer" title="API docs"><BookOpen size={18} /> <span className="lbl">API docs</span></a>
         </nav>
         <button className="collapse-btn" onClick={toggle} title={collapsed ? "Expand" : "Collapse"}>
           {collapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />} <span className="lbl">Collapse</span>

@@ -9,7 +9,7 @@ import { IST, istHour, ROLE_LABEL, ROLE_RANK } from "@/lib/client/format";
 import { useNotifications } from "@/lib/client/notifications";
 import { Loading, useToast } from "@/components/ui";
 import { WorkDayCard } from "@/components/work-day-card";
-import { OpenTasksCard } from "@/components/open-tasks-card";
+import { OpenTasksCard, RunningTaskBanner } from "@/components/open-tasks-card";
 import { MailPanel } from "@/components/mail-panel";
 import { TaskDrawer } from "@/components/task-drawer";
 import { TaskFormModal } from "@/components/task-form";
@@ -74,6 +74,8 @@ export default function Dashboard() {
       <nav className="quick-links" aria-label="Quick actions">
         {links.map((l) => <Link key={l.label} href={l.href}><l.icon size={14} /> {l.label}</Link>)}
       </nav>
+
+      <RunningTaskBanner tasks={d.tasks} fetchedAt={d.at} onOpen={setOpenId} onChanged={load} />
 
       <section className="kpi-strip">
         {kpis.map((k) => (
