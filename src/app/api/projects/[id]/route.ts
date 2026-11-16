@@ -23,10 +23,20 @@ export const GET = authed<P>(async (_req, actor, { id }) => {
     }),
     prisma.task.groupBy({ by: ["status"], where: { projectId: pid }, _count: true }),
   ]);
+  const [mem, runningNow, totals] = await Promise.all([
+    prisma.taskAssignee.groupBy({ by: ["userId"], where: { task: { projectId: pid } }, _sum: { workedSeconds: true } }),
+    prisma.taskAssignee.findMany({ where: { task: { projectId: pid }, status: "ASSIGNED", lastResumedAt: { not: null } }, select: { userId: true, lastResumedAt: true } }),
+    prisma.task.aggregate({ where: { projectId: pid }, _sum: { workedSeconds: true, estimatedMinutes: true } }),
+  ]);
+  const nowMs = Date.now();
+  const timeByMember: Record<number, number> = {};
+  mem.forEach((g) => { timeByMember[g.userId] = g._sum.workedSeconds ?? 0; });
+  runningNow.forEach((r) => { timeByMember[r.userId] = (timeByMember[r.userId] ?? 0) + Math.max(0, Math.floor((nowMs - r.lastResumedAt!.getTime()) / 1000)); });
+  const loggedSeconds = (totals._sum.workedSeconds ?? 0) + runningNow.reduce((n, r) => n + Math.max(0, Math.floor((nowMs - r.lastResumedAt!.getTime()) / 1000)), 0);
   const taskCounts = Object.fromEntries(byStatus.map((g) => [g.status, g._count]));
   const total = byStatus.reduce((n, g) => n + g._count, 0);
   const progress = total ? Math.round(((taskCounts.ENDED ?? 0) / total) * 100) : 0;
-  return NextResponse.json({ project, taskCounts, progress, canManage: access.canManage });
+  return NextResponse.json({ project, taskCounts, progress, canManage: access.canManage, loggedSeconds, estimatedMinutes: totals._sum.estimatedMinutes ?? 0, timeByMember, workingNow: runningNow.length });
 });
 
 export const PATCH = authed<P>(async (req, actor, { id }) => {

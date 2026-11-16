@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { CheckCheck, Mail } from "lucide-react";
 import { api } from "@/lib/client/api";
 import { fmtDateTime } from "@/lib/client/format";
-import { NOTICE_ICON, useNotifications, type Notice } from "@/lib/client/notifications";
+import { noticeIcon, useNotifications, type Notice } from "@/lib/client/notifications";
 import { Empty, Loading, PageHeader, Spinner, useToast } from "@/components/ui";
 
 const PAGE = 20;
@@ -15,7 +15,7 @@ export default function NotificationsPage() {
   const toast = useToast();
   const { unread, markRead, refresh } = useNotifications();
   const [filter, setFilter] = useState<"all" | "unread">("all");
-  const [category, setCategory] = useState<"" | "task" | "leave">("");
+  const [category, setCategory] = useState<"" | "task" | "leave" | "request" | "meeting">("");
   const [items, setItems] = useState<Notice[] | null>(null);
   const [more, setMore] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -62,7 +62,7 @@ export default function NotificationsPage() {
           {(["all", "unread"] as const).map((f) => <button key={f} className={filter === f ? "on" : ""} onClick={() => setFilter(f)}>{f === "all" ? "All" : `Unread${unread ? ` (${unread})` : ""}`}</button>)}
         </div>
         <div className="seg">
-          {([["", "Everything"], ["task", "Tasks"], ["leave", "Leave"]] as const).map(([k, l]) => <button key={k} className={category === k ? "on" : ""} onClick={() => setCategory(k)}>{l}</button>)}
+          {([["", "Everything"], ["task", "Tasks"], ["request", "Requests"], ["meeting", "Meetings"], ["leave", "Leave"]] as const).map(([k, l]) => <button key={k} className={category === k ? "on" : ""} onClick={() => setCategory(k)}>{l}</button>)}
         </div>
         <label className="chip" style={{ marginLeft: "auto", display: "inline-flex", gap: 8, alignItems: "center" }}>
           <input type="checkbox" checked={emailEnabled} onChange={toggleEmail} /> <Mail size={14} /> Email me a copy
@@ -74,7 +74,7 @@ export default function NotificationsPage() {
           <div className="list">
             {items.map((n) => (
               <div key={n.id} className={`list-row notice big${n.readAt ? "" : " unread"}`} onClick={() => open(n)}>
-                <span className="notice-ico">{NOTICE_ICON[n.type] ?? "🔔"}</span>
+                <span className="notice-ico">{(() => { const I = noticeIcon(n.type); return <I size={16} />; })()}</span>
                 <div className="grow-min">
                   <div className="title-line"><span className="t">{n.title}</span>{!n.readAt && <span className="badge b-purple">New</span>}</div>
                   {n.body && <div className="sub-line" style={{ whiteSpace: "normal" }}>{n.body}</div>}

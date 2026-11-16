@@ -6,7 +6,9 @@ import { Search, X } from "lucide-react";
 import { api } from "@/lib/client/api";
 import { fmtDate, fmtMinutes, isoDate } from "@/lib/client/format";
 import { useNotifications } from "@/lib/client/notifications";
-import { Empty, Loading, PageHeader, PriorityBadge, StatusBadge } from "@/components/ui";
+import { Plus } from "lucide-react";
+import { Empty, Loading, PageHeader, PriorityBadge, StatusBadge, useToast } from "@/components/ui";
+import { TaskFormModal } from "@/components/task-form";
 import { TaskDrawer } from "@/components/task-drawer";
 
 const STATUSES = ["TODO", "IN_PROGRESS", "PAUSED", "COMPLETED", "IN_REVIEW", "ENDED"];
@@ -15,6 +17,10 @@ const addDays = (n: number) => { const d = new Date(); d.setDate(d.getDate() + n
 
 export default function MyTasks() {
   const { unreadTaskIds } = useNotifications();
+  const toast = useToast();
+  const [newOpen, setNewOpen] = useState(false);
+  const [projectList, setProjectList] = useState<{ id: number; name: string }[]>([]);
+  useEffect(() => { api("/api/projects").then((r) => setProjectList(r.projects.filter((p: any) => p.status === "ACTIVE" || p.status === "ON_HOLD"))); }, []);
   const openParam = Number(useSearchParams().get("open")) || null;
   const [tab, setTab] = useState<"mine" | "review">("mine");
   const [mine, setMine] = useState<any[] | null>(null);
@@ -61,7 +67,7 @@ export default function MyTasks() {
 
   return (
     <>
-      <PageHeader title="My tasks" subtitle="Everything assigned to you across projects." />
+      <PageHeader title="My tasks" subtitle="Everything assigned to you across projects." actions={<button className="btn btn-primary" onClick={() => setNewOpen(true)}><Plus size={16} /> New task</button>} />
       <div className="tabs">
         <button className={`tab${tab === "mine" ? " active" : ""}`} onClick={() => setTab("mine")}>
           Assigned to me {newCount > 0 && <span className="badge b-purple">{newCount} new</span>}
@@ -110,7 +116,9 @@ export default function MyTasks() {
                   <tr key={t.id} className="click" onClick={() => setOpenId(t.id)}>
                     <td style={{ fontWeight: isNew ? 700 : 600 }}>
                       {isNew && <span className="dot-new" style={{ marginRight: 8 }} title="New" />}{t.title}
-                      {t.isTimerRunning && <span className="timer-dot" style={{ display: "inline-block", marginLeft: 8 }} />}
+                      {t.mine?.isRunning && <span className="timer-dot" style={{ display: "inline-block", marginLeft: 8 }} />}
+                      {t.assignees?.filter((a: any) => a.status === "ASSIGNED").length > 1 && <span className="badge b-gray" style={{ marginLeft: 8 }}>Shared</span>}
+                      {t.mine?.doneAt && t.status !== "COMPLETED" && t.status !== "ENDED" && <span className="badge b-green" style={{ marginLeft: 8 }}>My part done</span>}
                     </td>
                     <td>{t.project.name}</td>
                     <td><PriorityBadge priority={t.priority} /></td>
@@ -124,6 +132,7 @@ export default function MyTasks() {
           </table></div>
         )}
       </div>
+      {newOpen && <TaskFormModal projects={projectList} onClose={() => setNewOpen(false)} onCreated={() => { setNewOpen(false); toast("Task created"); load(); }} />}
       {openId && <TaskDrawer taskId={openId} onClose={() => setOpenId(null)} onChanged={load} />}
     </>
   );

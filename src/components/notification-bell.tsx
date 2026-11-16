@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Bell, BellRing, CheckCheck } from "lucide-react";
-import { NOTICE_ICON, useNotifications, type Notice } from "@/lib/client/notifications";
+import { noticeIcon, useNotifications, type Notice } from "@/lib/client/notifications";
 import { desktopEnabled, desktopSupported, disableDesktop, enableDesktop } from "@/lib/client/desktop-notify";
 import { fmtMailDate } from "@/lib/client/format";
 import { useToast } from "./ui";
@@ -53,7 +53,7 @@ export function NotificationBell() {
             {latest.length === 0 && <div className="empty tight">You’re all caught up</div>}
             {latest.slice(0, 8).map((n) => (
               <div key={n.id} className={`list-row notice${n.readAt ? "" : " unread"}`} onClick={() => go(n)}>
-                <span className="notice-ico">{NOTICE_ICON[n.type] ?? "🔔"}</span>
+                <span className="notice-ico">{(() => { const I = noticeIcon(n.type); return <I size={16} />; })()}</span>
                 <div className="grow-min">
                   <div className="title-line"><span className="t">{n.title}</span></div>
                   {n.body && <div className="sub-line"><span className="ellipsis">{n.body}</span></div>}

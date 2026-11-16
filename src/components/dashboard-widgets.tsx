@@ -93,3 +93,47 @@ export function ProjectsHealthCard({ projects, title = "Projects" }: { projects:
     </div>
   );
 }
+
+/* ── Meetings & requests panels ── */
+import { CalendarClock, FileCheck2, Video } from "lucide-react";
+import { fmtDayHeading, fmtMailDate } from "@/lib/client/format";
+import { REQUEST_TYPE_MAP } from "@/lib/request-types";
+import { RequestStatus } from "./request-parts";
+import { meetingPhase, timeRange } from "./meeting-parts";
+
+export function MeetingsCard({ meetings, now }: { meetings: any[]; now: number }) {
+  const live = meetings.filter((m) => m.status === "SCHEDULED").slice(0, 4);
+  return (
+    <div className="card dash-card">
+      <div className="dc-head"><h3><CalendarClock size={15} /> Meetings <span className="count">{live.length}</span></h3><Link href="/meetings" className="link-sm">Schedule <ArrowRight size={13} /></Link></div>
+      {live.length === 0 ? <p className="hint">Nothing scheduled. Plan one from the Meetings page.</p> : live.map((m) => {
+        const ph = meetingPhase(m, now);
+        return (
+          <Link key={m.id} href={`/meetings?open=${m.id}`} className="pal-row">
+            <span className="meet-time" style={{ width: 54 }}><b style={{ fontSize: 12 }}>{timeRange(m).split(" – ")[0]}</b><span>{fmtDayHeading(m.startsAt).split(",")[0].slice(0, 3)}</span></span>
+            <span className="grow-min"><span className="t">{m.title}</span><span className="sub">{m.attendees.length + 1} people{m.project ? ` · ${m.project.name}` : ""}</span></span>
+            {ph === "live" && <span className="badge b-green"><span className="timer-dot" /> Live</span>}
+            {ph === "soon" && <span className="badge b-amber">Soon</span>}
+            {m.link && (ph === "live" || ph === "soon") && <a className="btn btn-primary btn-sm" href={m.link} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}><Video size={13} /> Join</a>}
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
+
+export function RequestsCard({ requests, summary }: { requests: any[]; summary: { awaitingMe: number; needsFix: number; approvedForMe: number } }) {
+  const todo = requests.filter((r) => ["PENDING", "RESUBMITTED", "APPROVED"].includes(r.status)).slice(0, 4);
+  return (
+    <div className="card dash-card">
+      <div className="dc-head"><h3><FileCheck2 size={15} /> Requests <span className="count">{summary.awaitingMe + summary.approvedForMe + summary.needsFix}</span></h3><Link href="/requests" className="link-sm">Open <ArrowRight size={13} /></Link></div>
+      {summary.needsFix > 0 && <p className="hint" style={{ color: "var(--danger)", marginBottom: 6 }}><AlertTriangle size={13} style={{ verticalAlign: -2 }} /> {summary.needsFix} of your request(s) were rejected — edit and resubmit.</p>}
+      {todo.length === 0 ? <p className="hint">No requests are waiting on you.</p> : todo.map((r) => (
+        <Link key={r.id} href={`/requests?open=${r.id}`} className="pal-row">
+          <span className="grow-min"><span className="t">{r.title}</span><span className="sub">{REQUEST_TYPE_MAP[r.type]?.label} · from {r.requester.name} · {fmtMailDate(r.updatedAt)}</span></span>
+          <RequestStatus status={r.status} />
+        </Link>
+      ))}
+    </div>
+  );
+}

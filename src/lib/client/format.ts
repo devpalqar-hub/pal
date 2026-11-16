@@ -40,3 +40,15 @@ export const isoDate = (d = new Date()) => d.toLocaleDateString("en-CA", { timeZ
 
 export const assignableRoles = (myRole: string) =>
   Object.keys(ROLE_RANK).filter((r) => myRole === "SUPER_ADMIN" || ROLE_RANK[r] < ROLE_RANK[myRole]);
+
+/** "2026-11-20" + "15:30" typed in IST -> an ISO instant. */
+export const istToIso = (date: string, time: string) => `${date}T${time}:00+05:30`;
+/** ISO instant -> IST date ("YYYY-MM-DD") and time ("HH:mm") parts for form inputs. */
+export function isoToIst(iso: string) {
+  const d = new Date(iso);
+  return {
+    date: d.toLocaleDateString("en-CA", { timeZone: IST }),
+    time: d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: IST }),
+  };
+}
+export const fmtDayHeading = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", timeZone: IST });

@@ -1,9 +1,20 @@
 const TOKEN_KEY = "pal_token";
 
+/**
+ * The session lives in sessionStorage, so every browser tab/window has its own login.
+ * (localStorage is shared by all tabs: a second login in another window used to overwrite
+ * the first window's token and log that user out or swap their identity.)
+ */
 export const tokenStore = {
-  get: () => (typeof window === "undefined" ? null : localStorage.getItem(TOKEN_KEY)),
-  set: (t: string) => localStorage.setItem(TOKEN_KEY, t),
-  clear: () => localStorage.removeItem(TOKEN_KEY),
+  get: () => (typeof window === "undefined" ? null : sessionStorage.getItem(TOKEN_KEY)),
+  set: (t: string) => {
+    sessionStorage.setItem(TOKEN_KEY, t);
+    localStorage.removeItem(TOKEN_KEY); // drop the legacy shared token
+  },
+  clear: () => {
+    sessionStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(TOKEN_KEY);
+  },
 };
 
 export class ApiError extends Error {

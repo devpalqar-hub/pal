@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { authed, parseBody } from "@/lib/http";
-import { badRequest, conflict, forbidden } from "@/lib/auth";
+import { conflict, forbidden } from "@/lib/auth";
 import { updateTaskSchema } from "@/lib/validation";
-import { outranks, rank } from "@/lib/roles";
 import { notify } from "@/lib/notify";
-import { applyTransition, taskCtx, taskInclude, withLiveTime } from "@/lib/task-flow";
+import { validateAssignees } from "@/lib/assign";
+import { activeOf, applyTransition, taskCtx, taskInclude, withLiveTime } from "@/lib/task-flow";
 
 type P = { id: string };
 
@@ -21,10 +21,13 @@ export const GET = authed<P>(async (_req, actor, { id }) => {
       events: { include: { actor: { select: { id: true, name: true } } }, orderBy: { id: "asc" } },
     },
   });
-  return NextResponse.json({ task: { ...withLiveTime(task), subtasks: task.subtasks.map(withLiveTime) } });
+  return NextResponse.json({ task: { ...withLiveTime(task, actor.id), subtasks: task.subtasks.map((s) => withLiveTime(s, actor.id)) } });
 });
 
-/** Edit details. Allowed for the creator and project managers; anyone may self-assign an unassigned task. */
+/**
+ * Edit details / assignees. Allowed for the creator and project managers;
+ * anyone in the project may claim a task nobody is assigned to.
+ */
 export const PATCH = authed<P>(async (req, actor, { id }) => {
   const ctx = await taskCtx(id, actor);
   if ("error" in ctx) return ctx.error;
@@ -33,41 +36,52 @@ export const PATCH = authed<P>(async (req, actor, { id }) => {
 
   const body = await parseBody(req, updateTaskSchema);
   if ("error" in body) return body.error;
-  const { assigneeId, dueDate, ...fields } = body.data;
+  const { assigneeIds: rawIds, assigneeId, dueDate, ...fields } = body.data;
+  const wanted = rawIds ?? (assigneeId === undefined ? undefined : assigneeId === null ? [] : [assigneeId]);
+  const next = wanted ? [...new Set(wanted)] : undefined;
 
+  const current = activeOf(task);
   const isEditor = task.createdById === actor.id || access.canManage;
-  const onlySelfClaim =
-    task.assigneeId === null && assigneeId === actor.id && Object.keys(fields).length === 0 && dueDate === undefined;
-  if (!isEditor && !onlySelfClaim) return forbidden();
+  const onlyClaim = !!next && current.length === 0 && next.length === 1 && next[0] === actor.id && Object.keys(fields).length === 0 && dueDate === undefined;
+  if (!isEditor && !onlyClaim) return forbidden();
 
   const data: Record<string, unknown> = { ...fields };
   if (dueDate !== undefined) data.dueDate = dueDate ? new Date(dueDate) : null;
 
-  let assigned = false;
-  if (assigneeId !== undefined && assigneeId !== task.assigneeId) {
-    if (task.status !== "TODO") return conflict("Only tasks in TODO can be reassigned");
-    if (assigneeId !== null && assigneeId !== actor.id) {
-      if (!access.memberIds.includes(assigneeId)) return badRequest("Assignee must be a project member");
-      const a = await prisma.user.findUnique({ where: { id: assigneeId }, select: { role: true } });
-      if (!a) return badRequest("Assignee not found");
-      if (!access.canManage && !(rank(actor.role) >= rank("LEAD") && outranks(actor.role, a.role))) return forbidden();
+  const ops = [];
+  let note: string | null = null;
+  let added: number[] = [];
+  if (next) {
+    if (["COMPLETED", "IN_REVIEW"].includes(task.status)) return conflict("Assignees cannot change while the task is completed or in review");
+    const currentIds = current.map((a) => a.userId);
+    added = next.filter((u) => !currentIds.includes(u));
+    const removed = current.filter((a) => !next.includes(a.userId));
+    const locked = removed.find((a) => a.startedAt || a.workedSeconds > 0 || a.lastResumedAt || a.doneAt);
+    if (locked) return conflict("Someone who has already worked on this task cannot be removed");
+    const bad = await validateAssignees(added, actor, access);
+    if (bad) return bad;
+
+    for (const a of removed) ops.push(prisma.taskAssignee.delete({ where: { id: a.id } }));
+    for (const userId of added) {
+      ops.push(prisma.taskAssignee.upsert({
+        where: { taskId_userId: { taskId: task.id, userId } },
+        create: { taskId: task.id, userId },
+        update: { status: "ASSIGNED", rejectReason: null, rejectedAt: null, doneAt: null },
+      }));
     }
-    data.assigneeId = assigneeId;
-    assigned = true;
+    const kept = currentIds.filter((u) => next.includes(u));
+    data.assigneeId = [...kept, ...added][0] ?? null;
+    if (added.length || removed.length) note = `Assignees updated (+${added.length} / −${removed.length})`;
   }
 
-  const updated = await applyTransition(
-    task.id,
-    data,
-    assigned ? [{ type: "ASSIGNED", actorId: actor.id, note: assigneeId ? `Assigned to user ${assigneeId}` : "Unassigned" }] : [],
-  );
-  if (assigned && assigneeId && assigneeId !== actor.id) {
-    await notify({ userId: assigneeId, type: "TASK_ASSIGNED", title: `Task assigned: ${task.title}`, body: `${actor.name} assigned you this task.`, taskId: task.id });
+  const updated = await applyTransition(task.id, data, note ? [{ type: "ASSIGNED", actorId: actor.id, note }] : [], actor.id, ops);
+  for (const userId of added.filter((u) => u !== actor.id)) {
+    await notify({ userId, type: "TASK_ASSIGNED", title: `Task assigned: ${task.title}`, body: `${actor.name} added you to this task.`, taskId: task.id });
   }
   return NextResponse.json({ task: updated });
 });
 
-/** Delete (with its sub-tasks): creator while still TODO, or a project manager. */
+/** Delete (with its sub-tasks): creator while nobody has started, or a project manager. */
 export const DELETE = authed<P>(async (_req, actor, { id }) => {
   const ctx = await taskCtx(id, actor);
   if ("error" in ctx) return ctx.error;

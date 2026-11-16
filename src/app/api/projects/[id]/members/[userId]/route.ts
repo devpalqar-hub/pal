@@ -15,7 +15,7 @@ export const DELETE = authed<{ id: string; userId: string }>(async (_req, actor,
   if (uid === access.project.ownerId) return conflict("The project owner cannot be removed");
 
   const open = await prisma.task.count({
-    where: { projectId: pid, OR: [{ assigneeId: uid }, { reviewerId: uid, status: "IN_REVIEW" }], status: { not: "ENDED" } },
+    where: { projectId: pid, OR: [{ assignees: { some: { userId: uid, status: "ASSIGNED" } } }, { reviewerId: uid, status: "IN_REVIEW" }], status: { not: "ENDED" } },
   });
   if (open) return conflict("Member still has open tasks in this project; reassign them first", { openTasks: open });
 
