@@ -25,6 +25,7 @@ export default function RequestsPage() {
   const [f, setF] = useState({ status: "", type: "", q: "" });
   const [newOpen, setNewOpen] = useState(false);
   const [openId, setOpenId] = useState<number | null>(Number(params.get("open")) || null);
+  useEffect(() => { const id = Number(params.get("open")) || null; if (id) setOpenId(id); }, [params]);
 
   const load = useCallback(async () => {
     const q = new URLSearchParams({ box });

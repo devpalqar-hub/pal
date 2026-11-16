@@ -26,6 +26,7 @@ export default function MyTasks() {
   const [mine, setMine] = useState<any[] | null>(null);
   const [review, setReview] = useState<any[] | null>(null);
   const [openId, setOpenId] = useState<number | null>(openParam);
+  useEffect(() => { const id = openParam; if (id) setOpenId(id); }, [openParam]);
   const [f, setF] = useState({ q: "", status: "", priority: "", project: "", due: "", kind: "", hideEnded: true, onlyNew: false });
 
   const load = useCallback(async () => {

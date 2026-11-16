@@ -16,6 +16,7 @@ export default function MeetingsPage() {
   const [rows, setRows] = useState<any[] | null>(null);
   const [newOpen, setNewOpen] = useState(false);
   const [openId, setOpenId] = useState<number | null>(Number(params.get("open")) || null);
+  useEffect(() => { const id = Number(params.get("open")) || null; if (id) setOpenId(id); }, [params]);
   const [now, setNow] = useState(() => Date.now());
 
   const load = useCallback(() => api(`/api/meetings?scope=${scope}`).then((r) => setRows(r.meetings)), [scope]);
