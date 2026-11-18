@@ -13,6 +13,8 @@ const plex = IBM_Plex_Sans({
 export const metadata: Metadata = {
   title: "PAL — Project & Workforce Management",
   description: "Projects, tasks, attendance and team management in one place.",
+  // Private app: not for search engines (also sent as an X-Robots-Tag header, see next.config.ts)
+  robots: { index: false, follow: false, nocache: true, googleBot: { index: false, follow: false, noimageindex: true } },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
