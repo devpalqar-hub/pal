@@ -1,12 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { X, Play, Pause, CheckCircle2, Send, Flag, ThumbsUp, ThumbsDown, Plus, CalendarDays, Timer, Users, Ban, Pencil, MessageSquare } from "lucide-react";
+import { X, Play, Pause, CheckCircle2, Send, Flag, ThumbsUp, ThumbsDown, Plus, CalendarDays, Timer, Users, Ban, Pencil, MessageSquare, Trash2 } from "lucide-react";
 import { api } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth";
 import { fmtDateTime, fmtDate, fmtDuration, fmtMinutes } from "@/lib/client/format";
 import { useNotifications } from "@/lib/client/notifications";
-import { Avatar, Loading, Modal, PriorityBadge, StatusBadge, useToast, Field } from "./ui";
+import { Avatar, ConfirmDelete, Loading, Modal, PriorityBadge, StatusBadge, useToast, Field } from "./ui";
 import { TaskFormModal, PeoplePicker, assignableMembers, type Member } from "./task-form";
 import { RichText, RichTextEditor } from "./rich-text";
 
@@ -34,6 +34,7 @@ export function TaskDrawer({ taskId, onClose, onChanged }: { taskId: number; onC
   const [project, setProject] = useState<{ members: Member[]; canManage: boolean } | null>(null);
   const [fetchedAt, setFetchedAt] = useState(() => Date.now());
   const [busy, setBusy] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [dialog, setDialog] = useState<null | "complete" | "review" | "reject" | "decline" | "assignees">(null);
   const [reviewerId, setReviewerId] = useState("");
   const [note, setNote] = useState("");
@@ -102,6 +103,8 @@ export function TaskDrawer({ taskId, onClose, onChanged }: { taskId: number; onC
   const isCreator = task.createdById === user.id;
   const { canManage } = project;
   const isEditor = isCreator || canManage;
+  // same rule as the API: project managers, or the creator while nobody has started it
+  const canDelete = canManage || (isCreator && status === "TODO");
   const closed = ["COMPLETED", "IN_REVIEW", "ENDED"].includes(status);
   const reviewers = project.members.filter((m) => !active.some((a: any) => a.userId === m.user.id));
   const openSubs = task.subtasks.filter((s: any) => !["COMPLETED", "ENDED"].includes(s.status)).length;
@@ -128,7 +131,10 @@ export function TaskDrawer({ taskId, onClose, onChanged }: { taskId: number; onC
               {active.length > 1 && <span className="badge b-gray"><Users size={12} /> Shared · {active.length}</span>}
             </div>
           </div>
-          <button className="btn btn-ghost btn-sm" onClick={onClose} aria-label="Close"><X size={20} /></button>
+          <div className="actions" style={{ alignSelf: "flex-start" }}>
+            {canDelete && <button className="btn btn-ghost btn-sm" onClick={() => setDeleting(true)} title="Delete task" aria-label="Delete task"><Trash2 size={18} /></button>}
+            <button className="btn btn-ghost btn-sm" onClick={onClose} aria-label="Close"><X size={20} /></button>
+          </div>
         </div>
 
         <div className="drawer-body">
@@ -322,6 +328,16 @@ export function TaskDrawer({ taskId, onClose, onChanged }: { taskId: number; onC
         </Modal>
       )}
 
+      {deleting && (
+        <ConfirmDelete title="Delete this task?" onClose={() => setDeleting(false)} onConfirm={async () => {
+          const r = await api(`/api/tasks/${task.id}`, { method: "DELETE" });
+          toast(r.deleted > 1 ? `Task and ${r.deleted - 1} sub-task(s) deleted` : "Task deleted");
+          onChanged(); onClose();
+        }}>
+          <b>{task.title}</b> will be removed with its comments, activity log and logged time
+          {task.subtasks.length > 0 && <>, <b>and all {task.subtasks.length} sub-task{task.subtasks.length > 1 ? "s" : ""}</b> (including theirs)</>}.
+        </ConfirmDelete>
+      )}
       {subOpen && (
         <TaskFormModal projectId={task.projectId} parentId={task.id} members={project.members} canManage={project.canManage}
           onClose={() => setSubOpen(false)} onCreated={() => { setSubOpen(false); toast("Sub-task created"); load(); onChanged(); }} />

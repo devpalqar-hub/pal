@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { X, Check, Ban, RotateCcw, CheckCheck, Undo2, Share2, ExternalLink } from "lucide-react";
+import { X, Check, Ban, RotateCcw, CheckCheck, Undo2, Share2, ExternalLink, Trash2 } from "lucide-react";
 import { api } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth";
 import { fmtDate, fmtDateTime, ROLE_LABEL } from "@/lib/client/format";
 import { REQUEST_TYPES, REQUEST_TYPE_MAP, type FieldDef } from "@/lib/request-types";
-import { Avatar, Field, Loading, Modal, PriorityBadge, Spinner, useToast } from "./ui";
+import { Avatar, ConfirmDelete, Field, Loading, Modal, PriorityBadge, Spinner, useToast } from "./ui";
 import { RichText, RichTextEditor } from "./rich-text";
 
 const TONE: Record<string, [string, string]> = {
@@ -131,7 +131,7 @@ export function RequestDrawer({ requestId, onClose, onChanged }: { requestId: nu
   const { user } = useAuth();
   const toast = useToast();
   const [r, setR] = useState<any>(null);
-  const [dialog, setDialog] = useState<null | "reject" | "complete" | "resubmit" | "reassign" | "approve">(null);
+  const [dialog, setDialog] = useState<null | "reject" | "complete" | "resubmit" | "reassign" | "approve" | "delete">(null);
   const [note, setNote] = useState("");
   const [result, setResult] = useState("");
   const [busy, setBusy] = useState(false);
@@ -155,6 +155,8 @@ export function RequestDrawer({ requestId, onClose, onChanged }: { requestId: nu
   const def = REQUEST_TYPE_MAP[r.type];
   const isAssignee = r.assigneeId === user.id, isRequester = r.requesterId === user.id;
   const open = ["PENDING", "RESUBMITTED"].includes(r.status);
+  const admin = user.role === "SUPER_ADMIN" || user.role === "COMPANY_HEAD";
+  const canDelete = admin || (isRequester && ["PENDING", "RESUBMITTED", "REJECTED", "CANCELLED"].includes(r.status));
   const value = (f: FieldDef) => {
     const v = r.data?.[f.key];
     if (v === undefined || v === "" || v === null) return <span className="hint">—</span>;
@@ -193,6 +195,7 @@ export function RequestDrawer({ requestId, onClose, onChanged }: { requestId: nu
             {(isAssignee || isRequester) && ["PENDING", "RESUBMITTED", "APPROVED", "REJECTED"].includes(r.status) && (
               <button className="btn" disabled={busy} onClick={() => { api("/api/directory").then((d) => setPeople(d.users)); setTo(""); setDialog("reassign"); }}><Share2 size={16} /> Reassign</button>)}
             {isRequester && ["PENDING", "RESUBMITTED", "APPROVED", "REJECTED"].includes(r.status) && <button className="btn" disabled={busy} onClick={() => act("cancel", {}, "Request cancelled")}><Undo2 size={16} /> Cancel request</button>}
+            {canDelete && <button className="btn btn-ghost" disabled={busy} onClick={() => setDialog("delete")} style={{ color: "var(--danger)" }}><Trash2 size={16} /> Delete</button>}
           </div>
 
           <dl className="kv" style={{ marginBottom: 20 }}>
@@ -218,6 +221,14 @@ export function RequestDrawer({ requestId, onClose, onChanged }: { requestId: nu
         </div>
       </div>
 
+      {dialog === "delete" && (
+        <ConfirmDelete title="Delete this request?" onClose={() => setDialog(null)} onConfirm={async () => {
+          await api(`/api/requests/${r.id}`, { method: "DELETE" }); toast("Request deleted"); onChanged(); onClose();
+        }}>
+          <b>{r.title}</b> and its whole history will be removed for you and {isRequester ? r.assignee.name : r.requester.name}.
+          {["PENDING", "RESUBMITTED"].includes(r.status) && <> It is still waiting on {r.assignee.name} — consider <i>Cancel request</i> if you want to keep a record.</>}
+        </ConfirmDelete>
+      )}
       {dialog === "approve" && <Modal title="Approve request" onClose={() => setDialog(null)} footer={<><button className="btn" onClick={() => setDialog(null)}>Cancel</button><button className="btn btn-success" disabled={busy} onClick={() => act("approve", note ? { note } : {}, "Request approved")}>Approve</button></>}>
         <p className="hint" style={{ marginBottom: 12 }}>After approving, you can mark it complete once the work is done.</p>
         <Field label="Note" hint="Optional"><textarea className="textarea" value={note} onChange={(e) => setNote(e.target.value)} autoFocus /></Field></Modal>}

@@ -12,6 +12,7 @@
 | Start / pause / complete a task | **only the assignee** | | |
 | End a COMPLETED task | creator or project manager | | |
 | Review (approve / reject) | assigned reviewer or project manager | | |
+| Delete a task (with all its sub-tasks) | project manager | | creator, while still TODO |
 
 > A task created by someone else can only be started, paused and completed by the person it is assigned to.
 
@@ -53,3 +54,13 @@ Rules
 2. Anyone in the project `POST /api/projects/{id}/tasks` (title only is required; add description, estimate, due date, priority; set `parentId` for sub-tasks).
 3. Assignee `start` → `pause` / `start` …
 4. Assignee `complete` (optionally with `reviewerId`) → reviewer `review` → **ENDED**, or creator `end` for tasks without review.
+
+## Deleting
+
+| What | Who | Notes |
+|---|---|---|
+| Task | project managers; the creator while it is still TODO | Deletes every nested sub-task, comments and logged time. Refused while anyone's timer is running on it or a sub-task. |
+| Request | requester while PENDING / RESUBMITTED / REJECTED / CANCELLED; SUPER_ADMIN / COMPANY_HEAD any | Approved / completed requests stay as a record. |
+| Meeting | organiser; SUPER_ADMIN / COMPANY_HEAD | If it is still upcoming, invitees are notified, external guests emailed a cancellation, the Google Calendar event removed and the lead journey updated first. |
+
+Notifications that pointed at the deleted item are removed as well.

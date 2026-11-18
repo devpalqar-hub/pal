@@ -138,3 +138,21 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     </ToastCtx.Provider>
   );
 }
+
+/** "Are you sure?" dialog for destructive actions. Shows the server's error inline if it refuses. */
+export function ConfirmDelete({ title, children, confirmLabel = "Delete", onConfirm, onClose }: { title: string; children?: ReactNode; confirmLabel?: string; onConfirm: () => Promise<void>; onClose: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  async function go() {
+    setBusy(true); setErr("");
+    try { await onConfirm(); }
+    catch (e) { setErr(e instanceof Error ? e.message : "Failed"); setBusy(false); }
+  }
+  return (
+    <Modal title={title} onClose={onClose} footer={<><button className="btn" onClick={onClose}>Keep it</button><button className="btn btn-danger" disabled={busy} onClick={go}>{busy ? <Spinner /> : confirmLabel}</button></>}>
+      {err && <div className="alert alert-error">{err}</div>}
+      <div style={{ fontSize: 14 }}>{children}</div>
+      <p className="hint" style={{ marginTop: 10 }}>This can’t be undone.</p>
+    </Modal>
+  );
+}

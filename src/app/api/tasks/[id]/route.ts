@@ -92,6 +92,19 @@ export const DELETE = authed<P>(async (_req, actor, { id }) => {
   if ("error" in ctx) return ctx.error;
   const { task, access } = ctx;
   if (!access.canManage && !(task.createdById === actor.id && task.status === "TODO")) return forbidden();
-  await prisma.task.delete({ where: { id: task.id } });
-  return NextResponse.json({ ok: true });
+
+  // the task and every nested sub-task (deleted with it by the cascade)
+  const ids = [task.id];
+  for (let level = [task.id]; level.length; ) {
+    level = (await prisma.task.findMany({ where: { parentId: { in: level } }, select: { id: true } })).map((t) => t.id);
+    ids.push(...level);
+  }
+  const running = await prisma.taskAssignee.count({ where: { taskId: { in: ids }, lastResumedAt: { not: null } } });
+  if (running) return conflict("Someone is working on this task (or a sub-task) right now — their timer must be paused first");
+
+  await prisma.$transaction([
+    prisma.notification.deleteMany({ where: { taskId: { in: ids } } }),
+    prisma.task.delete({ where: { id: task.id } }),
+  ]);
+  return NextResponse.json({ ok: true, deleted: ids.length });
 });

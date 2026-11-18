@@ -7,7 +7,7 @@ import { useGoogleStatus } from "./google-connect";
 import { api } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth";
 import { fmtDayHeading, fmtTime, isoToIst, istToIso, ROLE_LABEL } from "@/lib/client/format";
-import { Avatar, Field, Loading, Modal, Spinner, useToast } from "./ui";
+import { Avatar, ConfirmDelete, Field, Loading, Modal, Spinner, useToast } from "./ui";
 import { PeoplePicker } from "./task-form";
 import { RichText, RichTextEditor } from "./rich-text";
 
@@ -168,6 +168,7 @@ export function MeetingDrawer({ meetingId, onClose, onChanged }: { meetingId: nu
   const [m, setM] = useState<any>(null);
   const [edit, setEdit] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [reason, setReason] = useState("");
   const load = () => api(`/api/meetings/${meetingId}`).then((d) => setM(d.meeting));
   useEffect(() => {
@@ -222,6 +223,7 @@ export function MeetingDrawer({ meetingId, onClose, onChanged }: { meetingId: nu
             )}
             {m.google?.htmlLink && <a className="btn" href={m.google.htmlLink} target="_blank" rel="noreferrer"><CalendarCheck2 size={15} /> Open in Google</a>}
             {canManage && m.status !== "CANCELLED" && <><button className="btn" onClick={() => setEdit(true)}><Pencil size={15} /> Edit</button><button className="btn" onClick={() => setCancelling(true)}><XCircle size={15} /> Cancel meeting</button></>}
+            {canManage && <button className="btn btn-ghost" onClick={() => setDeleting(true)} style={{ color: "var(--danger)" }}><Trash2 size={15} /> Delete</button>}
           </div>
 
           <dl className="kv" style={{ marginBottom: 20 }}>
@@ -245,6 +247,15 @@ export function MeetingDrawer({ meetingId, onClose, onChanged }: { meetingId: nu
           ))}
         </div>
       </div>
+      {deleting && (
+        <ConfirmDelete title="Delete this meeting?" onClose={() => setDeleting(false)} onConfirm={async () => {
+          await api(`/api/meetings/${m.id}`, { method: "DELETE" }); toast("Meeting deleted"); onChanged(); onClose();
+        }}>
+          <b>{m.title}</b> will be removed for everyone.
+          {m.status === "SCHEDULED" && phase !== "past" && <> Invitees{m.guests?.length ? " and external guests" : ""} will be told it is cancelled{m.googleEventId ? ", and it is removed from Google Calendar" : ""}.</>}
+          {m.status === "CANCELLED" && <> It is already cancelled — this only clears it from the list.</>}
+        </ConfirmDelete>
+      )}
       {edit && <MeetingFormModal meeting={m} onClose={() => setEdit(false)} onSaved={async () => { setEdit(false); await load(); onChanged(); }} />}
       {cancelling && (
         <Modal title="Cancel this meeting?" onClose={() => setCancelling(false)} footer={<><button className="btn" onClick={() => setCancelling(false)}>Keep it</button><button className="btn btn-danger" onClick={cancel}>Cancel meeting</button></>}>

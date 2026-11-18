@@ -5,8 +5,8 @@ import { badRequest, conflict, forbidden, notFound } from "@/lib/auth";
 import { meetingUpdateSchema } from "@/lib/validation";
 import { notify } from "@/lib/notify";
 import { findConflicts, istLabel, meetingInclude } from "@/lib/meetings";
-import { emailRemovedGuests, syncMeeting } from "@/lib/meeting-sync";
-import { leadScope } from "@/lib/leads";
+import { cancelMeetingExternally, emailRemovedGuests, syncMeeting } from "@/lib/meeting-sync";
+import { activity, leadScope } from "@/lib/leads";
 
 type P = { id: string };
 const seesAll = (r: string) => r === "SUPER_ADMIN" || r === "COMPANY_HEAD";
@@ -93,4 +93,31 @@ export const PATCH = authed<P>(async (req, actor, { id }) => {
     : null;
   const meeting = await prisma.meeting.findUniqueOrThrow({ where: { id: mid }, include: meetingInclude });
   return NextResponse.json({ meeting, conflicts, calendar });
+});
+
+/**
+ * Delete a meeting for good (organiser, or SUPER_ADMIN / COMPANY_HEAD).
+ * If it was still coming up, everyone is told it is cancelled first — PAL invitees in-app, guests by email,
+ * and the Google Calendar event is removed (Google notifies its attendees).
+ */
+export const DELETE = authed<P>(async (_req, actor, { id }) => {
+  const mid = parseId(id);
+  if (!mid) return badRequest("Invalid id");
+  const m = await prisma.meeting.findUnique({ where: { id: mid }, include: { attendees: true } });
+  if (!m) return notFound("Meeting not found");
+  if (m.organizerId !== actor.id && !seesAll(actor.role)) return forbidden();
+
+  const upcoming = m.status === "SCHEDULED" && m.endsAt > new Date();
+  if (upcoming || m.googleEventId) await cancelMeetingExternally(mid);
+  if (upcoming) {
+    for (const a of m.attendees.filter((a) => a.userId !== actor.id && a.response !== "DECLINED")) {
+      await notify({ userId: a.userId, type: "MEETING_CANCELLED", title: `Cancelled: ${m.title}`, body: `${actor.name} deleted the meeting planned for ${istLabel(m.startsAt)}.`, link: "/meetings" });
+    }
+    if (m.leadId) await activity(m.leadId, actor.id, "MEETING_CANCELLED", { meetingId: mid, note: `${m.title} — deleted` });
+  }
+  await prisma.$transaction([
+    prisma.notification.deleteMany({ where: { link: `/meetings?open=${mid}` } }),
+    prisma.meeting.delete({ where: { id: mid } }),
+  ]);
+  return NextResponse.json({ ok: true });
 });
