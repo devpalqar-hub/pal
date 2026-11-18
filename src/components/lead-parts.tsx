@@ -165,3 +165,25 @@ export function StageChangeModal({ leadId, stage, onClose, onDone }: { leadId: n
     </Modal>
   );
 }
+
+/** Mark a follow-up done with its outcome, optionally planning the next one in the same step. */
+export function CompleteFollowUp({ f, people, closed, onClose, onDone }: { f: any; people: any[]; closed: boolean; onClose: () => void; onDone: () => void }) {
+  const toast = useToast();
+  const [outcome, setOutcome] = useState("");
+  const [fu, setFu] = useState<FU>(() => { const b = blankFU(true); const t = isoToIst(new Date(Date.now() + 2 * 86_400_000).toISOString()); return { ...b, date: t.date, time: isoToIst(f.dueAt).time, type: f.type, assigneeId: String(f.assigneeId) }; });
+  const [busy, setBusy] = useState(false);
+  async function save() {
+    setBusy(true);
+    try {
+      await api(`/api/leads/follow-ups/${f.id}`, { method: "PATCH", body: { action: "done", ...(outcome && { outcome }), ...(fu.on && !closed && { nextFollowUp: fuBody(fu) }) } });
+      toast(fu.on ? "Done — next follow-up planned" : "Follow-up done"); onDone();
+    } catch (e) { toast(e instanceof Error ? e.message : "Failed", true); setBusy(false); }
+  }
+  return (
+    <Modal title={`Complete: ${pretty(f.type)} follow-up`} onClose={onClose} wide footer={<><button className="btn" onClick={onClose}>Cancel</button><button className="btn btn-primary" disabled={busy} onClick={save}>{busy ? <Spinner /> : "Mark done"}</button></>}>
+      <Field label="Outcome" hint="What happened? Goes into the lead journey."><textarea className="textarea" value={outcome} onChange={(e) => setOutcome(e.target.value)} autoFocus /></Field>
+      {!closed && <label style={{ display: "flex", gap: 8, alignItems: "center", margin: "6px 0 12px", fontWeight: 600 }}><input type="checkbox" checked={fu.on} onChange={(e) => setFu({ ...fu, on: e.target.checked })} /> Plan the next follow-up</label>}
+      {fu.on && !closed && <FollowUpFields value={fu} onChange={setFu} people={people} />}
+    </Modal>
+  );
+}

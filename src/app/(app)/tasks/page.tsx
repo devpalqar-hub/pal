@@ -11,11 +11,12 @@ import { Avatar, Empty, Loading, PageHeader, PriorityBadge, StatusBadge, useToas
 import { TaskFormModal } from "@/components/task-form";
 import { TaskDrawer } from "@/components/task-drawer";
 import { PalNo } from "@/components/pal-no";
+import { FollowUpList } from "@/components/follow-up-list";
 
 const STATUSES = ["TODO", "IN_PROGRESS", "PAUSED", "COMPLETED", "IN_REVIEW", "ENDED"];
 const PRIORITIES = ["URGENT", "HIGH", "MEDIUM", "LOW"];
 const addDays = (n: number) => { const d = new Date(); d.setDate(d.getDate() + n); return isoDate(d); };
-type Tab = "mine" | "review" | "assigned";
+type Tab = "mine" | "review" | "assigned" | "followups";
 
 /** How one assignee is getting on with a task. */
 const personState = (a: any): [string, string, string] =>
@@ -36,7 +37,9 @@ export default function MyTasks() {
   useEffect(() => { api("/api/projects").then((r) => setProjectList(r.projects.filter((p: any) => p.status === "ACTIVE" || p.status === "ON_HOLD"))); }, []);
   const params = useSearchParams();
   const openParam = Number(params.get("open")) || null;
-  const [tab, setTab] = useState<Tab>(params.get("tab") === "assigned" ? "assigned" : "mine");
+  const tabParam = params.get("tab");
+  const [tab, setTab] = useState<Tab>(tabParam === "assigned" || tabParam === "followups" ? tabParam : "mine");
+  const [fuCount, setFuCount] = useState({ due: 0, overdue: 0 });
   const [mine, setMine] = useState<any[] | null>(null);
   const [review, setReview] = useState<any[] | null>(null);
   const [assigned, setAssigned] = useState<any[] | null>(null);
@@ -44,10 +47,17 @@ export default function MyTasks() {
   useEffect(() => { const id = openParam; if (id) setOpenId(id); }, [openParam]);
   const [f, setF] = useState(BLANK);
 
-  const load = useCallback(async () => {
-    const [m, r, a] = await Promise.all([api("/api/tasks/me"), api("/api/tasks/me?role=reviewer"), api("/api/tasks/me?role=assigner")]);
-    setMine(m.tasks); setReview(r.tasks); setAssigned(a.tasks);
+  /** Badge: my pending lead follow-ups due today or overdue. */
+  const loadFollowUpCount = useCallback(async () => {
+    const [o, t] = await Promise.all([api("/api/leads/follow-ups?when=overdue"), api("/api/leads/follow-ups?when=today")]).catch(() => [{ followUps: [] }, { followUps: [] }]);
+    const overdueIds = new Set(o.followUps.map((x: any) => x.id));
+    setFuCount({ overdue: overdueIds.size, due: overdueIds.size + t.followUps.filter((x: any) => !overdueIds.has(x.id)).length });
   }, []);
+
+  const load = useCallback(async () => {
+    const [m, r, a] = await Promise.all([api("/api/tasks/me"), api("/api/tasks/me?role=reviewer"), api("/api/tasks/me?role=assigner"), loadFollowUpCount()]);
+    setMine(m.tasks); setReview(r.tasks); setAssigned(a.tasks);
+  }, [loadFollowUpCount]);
   useEffect(() => { load(); }, [load]);
 
   const source = tab === "mine" ? mine : tab === "review" ? review : assigned;
@@ -121,7 +131,7 @@ export default function MyTasks() {
 
   return (
     <>
-      <PageHeader title="My tasks" subtitle="Work assigned to you, waiting for your review, and work you’ve handed to others." actions={<button className="btn btn-primary" onClick={() => setNewOpen(true)}><Plus size={16} /> New task</button>} />
+      <PageHeader title="My tasks" subtitle="Work assigned to you, work you’ve handed to others, reviews waiting on you and your lead follow-ups." actions={<button className="btn btn-primary" onClick={() => setNewOpen(true)}><Plus size={16} /> New task</button>} />
       <div className="tabs">
         <button className={`tab${tab === "mine" ? " active" : ""}`} onClick={() => switchTab("mine")}>
           Assigned to me {newCount > 0 && <span className="badge b-purple">{newCount} new</span>}
@@ -132,7 +142,12 @@ export default function MyTasks() {
         <button className={`tab${tab === "review" ? " active" : ""}`} onClick={() => switchTab("review")}>
           Waiting for my review {review && review.length > 0 && <span className="badge b-red">{review.length}</span>}
         </button>
+        <button className={`tab${tab === "followups" ? " active" : ""}`} onClick={() => switchTab("followups")}>
+          Lead follow-ups {fuCount.due > 0 && <span className={`badge ${fuCount.overdue ? "b-red" : "b-amber"}`}>{fuCount.overdue ? `${fuCount.overdue} overdue` : `${fuCount.due} today`}</span>}
+        </button>
       </div>
+
+      {tab === "followups" ? <FollowUpList onChanged={loadFollowUpCount} /> : <>
 
       <div className="toolbar">
         <div className="input-wrap" style={{ minWidth: 240 }}><Search size={15} style={{ top: 12 }} /><input className="input" placeholder="Search title or PAL-0012…" value={f.q} onChange={set("q")} /></div>
@@ -231,6 +246,7 @@ export default function MyTasks() {
           </table></div>
         )}
       </div>
+      </>}
       {newOpen && <TaskFormModal projects={projectList} onClose={() => setNewOpen(false)} onCreated={() => { setNewOpen(false); toast("Task created"); load(); }} />}
       {openId && <TaskDrawer taskId={openId} onClose={() => setOpenId(null)} onChanged={load} />}
     </>

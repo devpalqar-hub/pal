@@ -4,10 +4,10 @@ import { use, useCallback, useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Phone, Mail, Globe, Pencil, Trash2, CalendarPlus, Presentation, Check, X, Clock, MessageSquare, PhoneCall, MessageCircle, StickyNote, ArrowRight, CalendarClock, Trophy, XCircle, Flame, UserCog, Plus } from "lucide-react";
 import { api } from "@/lib/client/api";
-import { fmtDate, fmtDateTime, isoToIst } from "@/lib/client/format";
+import { fmtDate, fmtDateTime } from "@/lib/client/format";
 import { LEAD_STAGES, OPEN_STAGE_KEYS, STAGE, TEMPS, TEMP, StageBadge, TempBadge, fmtMoney, pretty } from "@/lib/client/leads";
-import { Avatar, Field, Loading, Modal, PageHeader, Spinner, useToast } from "@/components/ui";
-import { FollowUpFields, LeadFormModal, StageChangeModal, blankFU, fuBody, usePeople, type FU } from "@/components/lead-parts";
+import { Avatar, Loading, Modal, PageHeader, Spinner, useToast } from "@/components/ui";
+import { CompleteFollowUp, FollowUpFields, LeadFormModal, StageChangeModal, blankFU, fuBody, usePeople, type FU } from "@/components/lead-parts";
 import { RichText } from "@/components/rich-text";
 import { MeetingDrawer, MeetingFormModal, timeRange } from "@/components/meeting-parts";
 
@@ -252,27 +252,6 @@ function AddFollowUp({ leadId, people, onClose, onDone }: { leadId: number; peop
   return (
     <Modal title="Plan a follow-up" onClose={onClose} wide footer={<><button className="btn" onClick={onClose}>Cancel</button><button className="btn btn-primary" disabled={busy} onClick={save}>{busy ? <Spinner /> : "Plan follow-up"}</button></>}>
       <FollowUpFields value={fu} onChange={setFu} people={people} />
-    </Modal>
-  );
-}
-
-function CompleteFollowUp({ f, people, closed, onClose, onDone }: { f: any; people: any[]; closed: boolean; onClose: () => void; onDone: () => void }) {
-  const toast = useToast();
-  const [outcome, setOutcome] = useState("");
-  const [fu, setFu] = useState<FU>(() => { const b = blankFU(true); const t = isoToIst(new Date(Date.now() + 2 * 86_400_000).toISOString()); return { ...b, date: t.date, time: isoToIst(f.dueAt).time, type: f.type, assigneeId: String(f.assigneeId) }; });
-  const [busy, setBusy] = useState(false);
-  async function save() {
-    setBusy(true);
-    try {
-      await api(`/api/leads/follow-ups/${f.id}`, { method: "PATCH", body: { action: "done", ...(outcome && { outcome }), ...(fu.on && !closed && { nextFollowUp: fuBody(fu) }) } });
-      toast(fu.on ? "Done — next follow-up planned" : "Follow-up done"); onDone();
-    } catch (e) { toast(e instanceof Error ? e.message : "Failed", true); setBusy(false); }
-  }
-  return (
-    <Modal title={`Complete: ${pretty(f.type)} follow-up`} onClose={onClose} wide footer={<><button className="btn" onClick={onClose}>Cancel</button><button className="btn btn-primary" disabled={busy} onClick={save}>{busy ? <Spinner /> : "Mark done"}</button></>}>
-      <Field label="Outcome" hint="What happened? Goes into the lead journey."><textarea className="textarea" value={outcome} onChange={(e) => setOutcome(e.target.value)} autoFocus /></Field>
-      {!closed && <label style={{ display: "flex", gap: 8, alignItems: "center", margin: "6px 0 12px", fontWeight: 600 }}><input type="checkbox" checked={fu.on} onChange={(e) => setFu({ ...fu, on: e.target.checked })} /> Plan the next follow-up</label>}
-      {fu.on && !closed && <FollowUpFields value={fu} onChange={setFu} people={people} />}
     </Modal>
   );
 }

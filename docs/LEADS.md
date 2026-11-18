@@ -39,6 +39,13 @@ Anyone can create a lead. Any active user can be the owner or a follow-up assign
 
 `LeadFollowUp`: type (call, email, WhatsApp, meeting, other), due time, assignee, note. Mark it **done** with an outcome and plan the next one in the same step, **reschedule** it (+1 day snooze), or **cancel** it. The lead's `nextFollowUpAt` always shows the earliest pending one, so the list can filter on "overdue", "today" and "none planned".
 
+### Where follow-ups show up
+
+- **My tasks → Lead follow-ups**: your own follow-ups as a separate work list next to your tasks. The tab badge shows overdue / due today.
+- **Leads → Follow-ups**: the same list, and managers can switch to the whole team.
+
+Both are grouped Overdue → Today → by day, filter by open / overdue / today / upcoming / done, type, temperature, stage and search (lead, company, note, phone, email). Each row has call / WhatsApp / email buttons, **+1d** snooze, and **Done**, which asks for the outcome and lets you plan the next follow-up in one step.
+
 ## Meetings with leads
 
 Schedule from the lead page (**Meeting** or **Schedule demo**). The meeting is linked to the lead (`meetings.leadId`), and you can invite:

@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Search, Target, Flame, AlarmClock, Trophy, Wallet, Phone, Mail, KanbanSquare, List, PhoneCall } from "lucide-react";
+import { Plus, Search, Target, Flame, AlarmClock, Trophy, Wallet, KanbanSquare, List, PhoneCall } from "lucide-react";
 import { api } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth";
 import { fmtDate, fmtDateTime, ROLE_RANK } from "@/lib/client/format";
 import { LEAD_STAGES, OPEN_STAGE_KEYS, SOURCES, STAGE, TEMPS, StageBadge, TempBadge, fmtMoney, pretty } from "@/lib/client/leads";
 import { Avatar, Empty, Loading, PageHeader, useToast } from "@/components/ui";
 import { LeadFormModal, StageChangeModal } from "@/components/lead-parts";
+import { FollowUpList } from "@/components/follow-up-list";
 
 type View = "board" | "list" | "followups";
 
@@ -89,7 +90,7 @@ export default function LeadsPage() {
         </div>
       )}
 
-      {view === "followups" ? <FollowUpQueue isManager={isManager} /> : !data ? <Loading /> : view === "board" ? (
+      {view === "followups" ? <FollowUpList teamToggle={isManager} onChanged={load} /> : !data ? <Loading /> : view === "board" ? (
         <div style={{ display: "flex", gap: 12, overflowX: "auto", alignItems: "flex-start", paddingBottom: 8 }}>
           {LEAD_STAGES.map((st) => {
             const items = data.leads.filter((l: any) => l.stage === st.key);
@@ -150,50 +151,5 @@ function LeadCard({ l, onOpen, onDrag }: { l: any; onOpen: () => void; onDrag: (
       </div>
       {l.nextFollowUpAt && <div className="hint" style={{ marginTop: 6, color: overdue ? "var(--danger)" : undefined }}><AlarmClock size={12} style={{ verticalAlign: -2 }} /> {fmtDateTime(l.nextFollowUpAt)}</div>}
     </div>
-  );
-}
-
-/** "What do I need to do today": overdue, today and upcoming follow-ups, with one-click done. */
-function FollowUpQueue({ isManager }: { isManager: boolean }) {
-  const router = useRouter();
-  const toast = useToast();
-  const [when, setWhen] = useState("overdue");
-  const [team, setTeam] = useState(false);
-  const [rows, setRows] = useState<any[] | null>(null);
-  const [now, setNow] = useState(() => Date.now());
-  const load = useCallback(() => api(`/api/leads/follow-ups?when=${when}${team ? "&scope=team" : ""}`).then((r) => { setRows(r.followUps); setNow(Date.now()); }), [when, team]);
-  useEffect(() => { setRows(null); load(); }, [load]);
-
-  async function done(id: number) {
-    const outcome = prompt("Outcome (optional) — what happened?") ?? undefined;
-    try { await api(`/api/leads/follow-ups/${id}`, { method: "PATCH", body: { action: "done", ...(outcome && { outcome }) } }); toast("Follow-up done — plan the next one on the lead"); load(); }
-    catch (e) { toast(e instanceof Error ? e.message : "Failed", true); }
-  }
-
-  return (
-    <>
-      <div className="toolbar">
-        <div className="seg">{[["overdue", "Overdue"], ["today", "Today"], ["upcoming", "Upcoming"], ["", "All open"], ["done", "Done"]].map(([k, l]) => <button key={k} className={when === k ? "on" : ""} onClick={() => setWhen(k)}>{l}</button>)}</div>
-        {isManager && <label className="chip" style={{ display: "inline-flex", gap: 8, alignItems: "center" }}><input type="checkbox" checked={team} onChange={(e) => setTeam(e.target.checked)} /> Whole team</label>}
-      </div>
-      <div className="card">
-        {!rows ? <Loading /> : rows.length === 0 ? <Empty title="Nothing here">{when === "overdue" ? "No overdue follow-ups — nice." : ""}</Empty> : rows.map((f) => {
-          const late = f.status === "PENDING" && new Date(f.dueAt).getTime() < now;
-          return (
-            <div key={f.id} className="list-row" style={{ padding: "12px 16px" }} onClick={() => router.push(`/leads/${f.lead.id}`)}>
-              <div style={{ minWidth: 150 }}><b style={{ color: late ? "var(--danger)" : undefined }}>{fmtDateTime(f.dueAt)}</b><div className="hint">{pretty(f.type)}{team ? ` · ${f.assignee.name}` : ""}</div></div>
-              <div className="grow-min" style={{ flex: 1 }}>
-                <div style={{ fontWeight: 600 }}>{f.lead.name}{f.lead.company ? <span className="hint"> · {f.lead.company}</span> : null}</div>
-                <div className="hint">{f.status === "DONE" ? f.outcome ?? "Done" : f.note ?? "—"}</div>
-              </div>
-              <StageBadge stage={f.lead.stage} /> <TempBadge temperature={f.lead.temperature} />
-              {f.lead.phone && <a className="btn btn-sm" href={`tel:${f.lead.phone}`} onClick={(e) => e.stopPropagation()}><Phone size={14} /></a>}
-              {f.lead.email && <a className="btn btn-sm" href={`mailto:${f.lead.email}`} onClick={(e) => e.stopPropagation()}><Mail size={14} /></a>}
-              {f.status === "PENDING" && <button className="btn btn-sm btn-primary" onClick={(e) => { e.stopPropagation(); done(f.id); }}>Done</button>}
-            </div>
-          );
-        })}
-      </div>
-    </>
   );
 }
