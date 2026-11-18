@@ -4,7 +4,8 @@ import { prisma } from "./prisma";
 
 export const TASK_TYPES: NotificationType[] = ["TASK_ASSIGNED", "TASK_REVIEW_REQUESTED", "TASK_COMPLETED", "TASK_APPROVED", "TASK_REJECTED", "TASK_ENDED", "TASK_DECLINED", "TASK_COMMENT"];
 export const LEAVE_TYPES: NotificationType[] = ["LEAVE_DECIDED"];
-export const MEETING_TYPES: NotificationType[] = ["MEETING_INVITE", "MEETING_UPDATED", "MEETING_CANCELLED"];
+export const MEETING_TYPES: NotificationType[] = ["MEETING_INVITE", "MEETING_UPDATED", "MEETING_CANCELLED", "MEETING_REMINDER"];
+export const LEAD_NOTIFY_TYPES: NotificationType[] = ["LEAD_ASSIGNED", "LEAD_FOLLOW_UP_ASSIGNED", "LEAD_FOLLOW_UP_DUE"];
 export const REQUEST_NOTIFY_TYPES: NotificationType[] = ["REQUEST_RECEIVED", "REQUEST_REJECTED", "REQUEST_RESUBMITTED", "REQUEST_APPROVED", "REQUEST_COMPLETED"];
 
 interface Input {
@@ -29,7 +30,8 @@ export async function notify(n: Input) {
 }
 
 let transport: Transporter | null | undefined;
-function getTransport() {
+/** Shared SMTP transport for system mail (null when NOTIFY_MAIL_* is not configured). */
+export function getTransport() {
   if (transport !== undefined) return transport;
   const user = process.env.NOTIFY_MAIL_USER;
   const pass = process.env.NOTIFY_MAIL_PASSWORD;
@@ -46,7 +48,7 @@ function getTransport() {
   }));
 }
 
-const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+export const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
 async function sendEmailCopy(userId: number, title: string, body: string | null, link: string | null) {
   const t = getTransport();

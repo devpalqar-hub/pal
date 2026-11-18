@@ -31,6 +31,18 @@ function WorkDayCardImpl({ requiredMinutes = 480, schedule, onChange }: { requir
     return () => clearInterval(i);
   }, [running]);
 
+  // Reload right after the shift end time so the server's automatic pause (and the task timers it stops) shows up.
+  const state0: string | undefined = today?.state;
+  useEffect(() => {
+    if (state0 !== "WORKING" || !schedule?.endTime) return;
+    const [h, m] = schedule.endTime.split(":").map(Number);
+    const istNow = new Date(Date.now() + 330 * 60_000);
+    const msLeft = ((h * 60 + m) - (istNow.getUTCHours() * 60 + istNow.getUTCMinutes())) * 60_000 - istNow.getUTCSeconds() * 1000;
+    if (msLeft <= 0) return;
+    const t = setTimeout(() => { load().then(() => onChange?.()); }, msLeft + 2000);
+    return () => clearTimeout(t);
+  }, [state0, schedule?.endTime, load, onChange]);
+
   async function act(action: string) {
     setBusy(true);
     try { await api(`/api/attendance/${action}`, { method: "POST" }); await load(); setNow(Date.now()); onChange?.(); }
@@ -63,6 +75,8 @@ function WorkDayCardImpl({ requiredMinutes = 480, schedule, onChange }: { requir
           {schedule && <><dt>Shift</dt><dd>{schedule.startTime}–{schedule.endTime}</dd></>}
         </dl>
       </div>
+      {state === "PAUSED" && events[events.length - 1]?.auto && <p className="hint" style={{ marginTop: 10 }}>Paused automatically at the end of your shift — task timers were paused too. Resume to keep working.</p>}
+      {state === "PAUSED" && !events[events.length - 1]?.auto && <p className="hint" style={{ marginTop: 10 }}>Your task timers are paused while the day timer is paused.</p>}
       <div className="actions" style={{ marginTop: 12 }}>
         {(state === "NOT_STARTED" || state === "STOPPED") && <button className="btn btn-primary btn-sm grow-btn" disabled={busy} onClick={() => act("start")}><Play size={14} /> {state === "STOPPED" ? "Start again" : "Start my day"}</button>}
         {state === "WORKING" && <button className="btn btn-sm grow-btn" disabled={busy} onClick={() => act("pause")}><Coffee size={14} /> Take a break</button>}

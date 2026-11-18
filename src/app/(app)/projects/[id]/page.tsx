@@ -168,20 +168,18 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
 }
 
 function AddMemberModal({ projectId, existing, onClose, onAdded }: { projectId: number; existing: number[]; onClose: () => void; onAdded: () => void }) {
-  const { user } = useAuth();
   const toast = useToast();
   const [users, setUsers] = useState<any[] | null>(null);
   const [sel, setSel] = useState("");
-  useEffect(() => { api("/api/users").then((r) => setUsers(r.users.filter((u: any) => u.isActive && !existing.includes(u.id)))); }, [existing]);
+  useEffect(() => { api("/api/directory").then((r) => setUsers(r.users.filter((u: any) => !existing.includes(u.id)))); }, [existing]);
   async function add() {
     try { await api(`/api/projects/${projectId}/members`, { body: { userId: Number(sel) } }); toast("Member added"); onAdded(); }
     catch (e) { toast(e instanceof Error ? e.message : "Failed", true); }
   }
-  void user;
   return (
     <Modal title="Add member" onClose={onClose} footer={<><button className="btn" onClick={onClose}>Cancel</button><button className="btn btn-primary" disabled={!sel} onClick={add}>Add</button></>}>
       {!users ? <Loading /> : users.length === 0 ? <Empty title="Nobody left to add" /> : (
-        <Field label="Team member" hint="You can add people ranked below you.">
+        <Field label="Team member" hint="Anyone in the company can be added — whatever their role.">
           <select className="select" value={sel} onChange={(e) => setSel(e.target.value)}>
             <option value="">Select…</option>
             {users.map((u) => <option key={u.id} value={u.id}>{u.name} — {u.designation || u.role}</option>)}

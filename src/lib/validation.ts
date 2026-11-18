@@ -183,6 +183,8 @@ export const requestActionSchema = z.object({
 });
 
 // ───── Meetings ─────
+const guestSchema = z.object({ email: z.string().trim().toLowerCase().email().max(190), name: z.string().trim().max(120).optional() });
+
 export const meetingSchema = z
   .object({
     title: z.string().trim().min(2).max(190),
@@ -194,6 +196,13 @@ export const meetingSchema = z
     endsAt: z.string().datetime({ offset: true }),
     projectId: z.number().int().positive().nullable().optional(),
     attendeeIds: z.array(z.number().int().positive()).max(100).default([]),
+    /** People outside PAL, invited by email (no account is created) */
+    guests: z.array(guestSchema).max(50).default([]),
+    leadId: z.number().int().positive().nullable().optional(),
+    /** Lead meeting that is a product demo: moves the lead to DEMO_SCHEDULED */
+    isDemo: z.boolean().optional(),
+    /** Put it in the organiser's Google Calendar when connected (default on) */
+    syncGoogle: z.boolean().default(true),
   })
   .refine((m) => new Date(m.endsAt) > new Date(m.startsAt), { message: "End time must be after the start time", path: ["endsAt"] });
 
@@ -206,6 +215,76 @@ export const meetingUpdateSchema = z.object({
   endsAt: z.string().datetime({ offset: true }).optional(),
   projectId: z.number().int().positive().nullable().optional(),
   attendeeIds: z.array(z.number().int().positive()).max(100).optional(),
+  guests: z.array(guestSchema).max(50).optional(),
+  leadId: z.number().int().positive().nullable().optional(),
 });
 
 export const rsvpSchema = z.object({ response: z.enum(["ACCEPTED", "DECLINED", "TENTATIVE"]) });
+
+// ───────── Leads ─────────
+const leadStage = z.enum(["NEW", "CONTACTED", "MQL", "SQL", "DEMO_SCHEDULED", "DEMO_DONE", "PROPOSAL", "NEGOTIATION", "WON", "LOST"]);
+const leadTemp = z.enum(["HOT", "WARM", "COLD"]);
+const leadSource = z.enum(["WEBSITE", "REFERRAL", "SOCIAL_MEDIA", "EMAIL_CAMPAIGN", "COLD_CALL", "EVENT", "PARTNER", "ADVERTISEMENT", "OTHER"]);
+const followUpType = z.enum(["CALL", "EMAIL", "WHATSAPP", "MEETING", "OTHER"]);
+const optText = (max: number) => z.string().trim().max(max).optional().or(z.literal("").transform(() => undefined));
+const nullText = (max: number) => z.string().trim().max(max).nullable().optional().transform((v) => (v === "" ? null : v));
+
+export const followUpSchema = z.object({
+  type: followUpType.default("CALL"),
+  dueAt: z.string().datetime({ offset: true }),
+  note: optText(2000),
+  /** Defaults to the lead owner */
+  assigneeId: z.number().int().positive().optional(),
+});
+
+export const createLeadSchema = z.object({
+  name: z.string().trim().min(1).max(190),
+  company: optText(190),
+  designation: optText(190),
+  email: z.string().trim().toLowerCase().email().max(190).optional().or(z.literal("").transform(() => undefined)),
+  phone: optText(40),
+  website: optText(300),
+  source: leadSource.default("OTHER"),
+  stage: leadStage.default("NEW"),
+  temperature: leadTemp.default("WARM"),
+  value: z.number().nonnegative().max(1e12).optional(),
+  currency: z.string().length(3).default("INR"),
+  requirement: optText(5000),
+  tags: optText(300),
+  ownerId: z.number().int().positive().optional(),
+  firstFollowUp: followUpSchema.optional(),
+});
+
+export const updateLeadSchema = z.object({
+  name: z.string().trim().min(1).max(190).optional(),
+  company: nullText(190),
+  designation: nullText(190),
+  email: z.string().trim().toLowerCase().email().max(190).nullable().optional().or(z.literal("").transform(() => null)),
+  phone: nullText(40),
+  website: nullText(300),
+  source: leadSource.optional(),
+  value: z.number().nonnegative().max(1e12).nullable().optional(),
+  currency: z.string().length(3).optional(),
+  requirement: nullText(5000),
+  tags: nullText(300),
+  ownerId: z.number().int().positive().optional(),
+});
+
+export const leadStageSchema = z
+  .object({ stage: leadStage, note: optText(2000), lostReason: optText(2000) })
+  .refine((v) => v.stage !== "LOST" || !!v.lostReason, { message: "Say why the lead was lost", path: ["lostReason"] });
+
+export const leadTempSchema = z.object({ temperature: leadTemp, note: optText(2000) });
+
+export const leadActivitySchema = z.object({
+  type: z.enum(["NOTE", "CALL", "EMAIL", "WHATSAPP"]),
+  note: z.string().trim().min(1).max(5000),
+  /** Schedule the next touch-point in the same step */
+  nextFollowUp: followUpSchema.optional(),
+});
+
+export const followUpActionSchema = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("done"), outcome: optText(2000), nextFollowUp: followUpSchema.optional() }),
+  z.object({ action: z.literal("cancel"), reason: optText(500) }),
+  z.object({ action: z.literal("reschedule"), dueAt: z.string().datetime({ offset: true }), note: optText(500) }),
+]);

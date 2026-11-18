@@ -5,6 +5,8 @@ import { authed, parseBody, parseId } from "@/lib/http";
 import { badRequest, conflict, forbidden, notFound } from "@/lib/auth";
 import { notify } from "@/lib/notify";
 import { istLabel, meetingInclude } from "@/lib/meetings";
+import { cancelMeetingExternally } from "@/lib/meeting-sync";
+import { activity } from "@/lib/leads";
 
 export const POST = authed<{ id: string }>(async (req, actor, { id }) => {
   const mid = parseId(id);
@@ -20,5 +22,7 @@ export const POST = authed<{ id: string }>(async (req, actor, { id }) => {
   for (const a of m.attendees.filter((a) => a.userId !== actor.id)) {
     await notify({ userId: a.userId, type: "MEETING_CANCELLED", title: `Cancelled: ${m.title}`, body: `${actor.name} cancelled the meeting planned for ${istLabel(m.startsAt)}.${body.data.reason ? ` “${body.data.reason}”` : ""}`, link: `/meetings?open=${mid}` });
   }
+  await cancelMeetingExternally(mid);
+  if (m.leadId) await activity(m.leadId, actor.id, "MEETING_CANCELLED", { meetingId: mid, note: `${m.title}${body.data.reason ? ` — ${body.data.reason}` : ""}` });
   return NextResponse.json({ meeting });
 });

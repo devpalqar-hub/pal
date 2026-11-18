@@ -7,6 +7,7 @@ import { api } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth";
 import { fmtDayHeading } from "@/lib/client/format";
 import { Avatar, Empty, Loading, PageHeader } from "@/components/ui";
+import { GoogleConnect } from "@/components/google-connect";
 import { MeetingDrawer, MeetingFormModal, RSVP_TONE, meetingPhase, timeRange } from "@/components/meeting-parts";
 
 export default function MeetingsPage() {
@@ -32,7 +33,7 @@ export default function MeetingsPage() {
   return (
     <>
       <PageHeader title="Meetings" subtitle="Schedule meetings, share the agenda and link, and invite your team (times in IST)."
-        actions={<button className="btn btn-primary" onClick={() => setNewOpen(true)}><Plus size={16} /> Schedule meeting</button>} />
+        actions={<><GoogleConnect /><button className="btn btn-primary" onClick={() => setNewOpen(true)}><Plus size={16} /> Schedule meeting</button></>} />
       <div className="tabs">
         <button className={`tab${scope === "upcoming" ? " active" : ""}`} onClick={() => setScope("upcoming")}>Upcoming</button>
         <button className={`tab${scope === "past" ? " active" : ""}`} onClick={() => setScope("past")}>Past</button>
@@ -55,7 +56,7 @@ export default function MeetingsPage() {
                       {phase === "soon" && <span className="badge b-amber">Soon</span>}
                       {m.status === "CANCELLED" && <span className="badge b-red">Cancelled</span>}
                       {m.project && <span className="badge b-purple">{m.project.name}</span>}</div>
-                    <div className="sub-line">{m.organizerId === user!.id ? "You" : m.organizer.name} · {m.attendees.length + 1} people{m.location ? <> · <MapPin size={11} /> {m.location}</> : null}</div>
+                    <div className="sub-line">{m.organizerId === user!.id ? "You" : m.organizer.name} · {m.attendees.length + 1 + (m.guests?.length ?? 0)} people{m.lead ? ` · lead: ${m.lead.name}` : ""}{m.location ? <> · <MapPin size={11} /> {m.location}</> : null}</div>
                   </div>
                   <div className="avatar-stack">{m.attendees.slice(0, 4).map((a: any) => <Avatar key={a.id} name={a.user.name} small />)}</div>
                   <span className={`badge ${rcls}`}>{rlbl}</span>

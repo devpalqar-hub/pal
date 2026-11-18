@@ -5,6 +5,7 @@ import { conflict, forbidden } from "@/lib/auth";
 import { updateTaskSchema } from "@/lib/validation";
 import { notify } from "@/lib/notify";
 import { validateAssignees } from "@/lib/assign";
+import { enforceShiftEnd } from "@/lib/day-timer";
 import { activeOf, applyTransition, taskCtx, taskInclude, withLiveTime } from "@/lib/task-flow";
 
 type P = { id: string };
@@ -12,6 +13,7 @@ type P = { id: string };
 export const GET = authed<P>(async (_req, actor, { id }) => {
   const ctx = await taskCtx(id, actor);
   if ("error" in ctx) return ctx.error;
+  await Promise.all(ctx.task.assignees.map((a) => enforceShiftEnd(a.userId))); // timers of people past their shift end
   const task = await prisma.task.findUniqueOrThrow({
     where: { id: ctx.task.id },
     include: {

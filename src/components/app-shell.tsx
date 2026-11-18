@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Mail, LayoutDashboard, Clock, FolderKanban, CheckSquare, Users, LogOut, Menu, Sparkles, CalendarOff, CalendarClock, FileCheck2, BarChart3, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Mail, LayoutDashboard, Clock, FolderKanban, CheckSquare, Users, LogOut, Menu, Sparkles, CalendarOff, CalendarClock, FileCheck2, BarChart3, PanelLeftClose, PanelLeftOpen, Eye, Target } from "lucide-react";
 import { useAuth } from "@/lib/client/auth";
 import { MailProvider, useMail } from "@/lib/client/mail";
 import { NotificationProvider, useNotifications } from "@/lib/client/notifications";
@@ -61,6 +61,7 @@ function Frame({ children }: { children: ReactNode }) {
         { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
         { href: "/tasks", label: "My Tasks", icon: CheckSquare, badge: notices.unreadTaskIds.size },
         { href: "/projects", label: "Projects", icon: FolderKanban },
+        { href: "/leads", label: "Leads", icon: Target },
         { href: "/assistant", label: "AI assistant", icon: Sparkles },
         { href: "/requests", label: "Requests", icon: FileCheck2, badge: notices.requestActions },
         { href: "/meetings", label: "Meetings", icon: CalendarClock },
@@ -73,6 +74,7 @@ function Frame({ children }: { children: ReactNode }) {
       ? [{
           title: "Management",
           items: [
+            { href: "/team", label: "Team", icon: Eye },
             { href: "/users", label: "My PALs", icon: Users },
             ...(rank >= ROLE_RANK.MANAGER ? [{ href: "/analytics", label: "Analytics", icon: BarChart3 }] : []),
           ],

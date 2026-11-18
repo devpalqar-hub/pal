@@ -2,10 +2,12 @@ import { NextResponse } from "next/server";
 import type { TaskStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { authed } from "@/lib/http";
+import { enforceShiftEnd } from "@/lib/day-timer";
 import { taskInclude, withLiveTime } from "@/lib/task-flow";
 
 /** My work queue across projects (tasks shared with others included). ?status= filters; ?role=reviewer = waiting on my review. */
 export const GET = authed(async (req, actor) => {
+  await enforceShiftEnd(actor.id);
   const q = new URL(req.url).searchParams;
   const asReviewer = q.get("role") === "reviewer";
   const tasks = await prisma.task.findMany({

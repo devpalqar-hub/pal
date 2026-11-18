@@ -15,7 +15,7 @@ export default function NotificationsPage() {
   const toast = useToast();
   const { unread, markRead, refresh } = useNotifications();
   const [filter, setFilter] = useState<"all" | "unread">("all");
-  const [category, setCategory] = useState<"" | "task" | "leave" | "request" | "meeting">("");
+  const [category, setCategory] = useState<"" | "task" | "leave" | "request" | "meeting" | "lead">("");
   const [items, setItems] = useState<Notice[] | null>(null);
   const [more, setMore] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -62,7 +62,7 @@ export default function NotificationsPage() {
           {(["all", "unread"] as const).map((f) => <button key={f} className={filter === f ? "on" : ""} onClick={() => setFilter(f)}>{f === "all" ? "All" : `Unread${unread ? ` (${unread})` : ""}`}</button>)}
         </div>
         <div className="seg">
-          {([["", "Everything"], ["task", "Tasks"], ["request", "Requests"], ["meeting", "Meetings"], ["leave", "Leave"]] as const).map(([k, l]) => <button key={k} className={category === k ? "on" : ""} onClick={() => setCategory(k)}>{l}</button>)}
+          {([["", "Everything"], ["task", "Tasks"], ["request", "Requests"], ["meeting", "Meetings"], ["lead", "Leads"], ["leave", "Leave"]] as const).map(([k, l]) => <button key={k} className={category === k ? "on" : ""} onClick={() => setCategory(k)}>{l}</button>)}
         </div>
         <label className="chip" style={{ marginLeft: "auto", display: "inline-flex", gap: 8, alignItems: "center" }}>
           <input type="checkbox" checked={emailEnabled} onChange={toggleEmail} /> <Mail size={14} /> Email me a copy

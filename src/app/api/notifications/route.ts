@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { authed } from "@/lib/http";
-import { MEETING_TYPES, LEAVE_TYPES, REQUEST_NOTIFY_TYPES, TASK_TYPES } from "@/lib/notify";
+import { LEAD_NOTIFY_TYPES, MEETING_TYPES, LEAVE_TYPES, REQUEST_NOTIFY_TYPES, TASK_TYPES } from "@/lib/notify";
 
 /** ?filter=unread|all  ?category=task|leave  ?limit= (max 100)  ?before=<id> */
 export const GET = authed(async (req, actor) => {
@@ -13,6 +13,7 @@ export const GET = authed(async (req, actor) => {
   if (cat === "task") where.type = { in: TASK_TYPES };
   if (cat === "leave") where.type = { in: LEAVE_TYPES };
   if (cat === "meeting") where.type = { in: MEETING_TYPES };
+  if (cat === "lead") where.type = { in: LEAD_NOTIFY_TYPES };
   if (cat === "request") where.type = { in: REQUEST_NOTIFY_TYPES };
   const before = Number(q.get("before"));
   if (before) where.id = { lt: before };

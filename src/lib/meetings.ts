@@ -5,6 +5,8 @@ export const meetingInclude = {
   organizer: { select: { id: true, name: true, role: true, designation: true } },
   project: { select: { id: true, name: true } },
   attendees: { include: { user: { select: { id: true, name: true, role: true, designation: true } } }, orderBy: { id: "asc" } },
+  guests: { orderBy: { id: "asc" } },
+  lead: { select: { id: true, name: true, company: true, stage: true } },
 } satisfies Prisma.MeetingInclude;
 
 /** Meetings in [start, end) that already include any of these people (excluding `ignoreId`). */

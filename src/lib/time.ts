@@ -18,3 +18,9 @@ export const istMinuteOfDay = (d: Date) => {
 
 export const istDateString = (d = new Date()) => istDateKey(d).toISOString().slice(0, 10);
 export const istYear = (d = new Date()) => shifted(d).getUTCFullYear();
+
+/** The instant when an IST wall-clock "HH:mm" occurs on the given IST calendar date (a UTC-midnight date key). */
+export function istInstant(dateKey: Date, hhmm: string): Date {
+  const [h, m] = hhmm.split(":").map(Number);
+  return new Date(dateKey.getTime() + (h * 60 + m) * 60_000 - IST_OFFSET_MS);
+}

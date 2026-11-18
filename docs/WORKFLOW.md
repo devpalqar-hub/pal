@@ -35,6 +35,10 @@ stateDiagram-v2
 ```
 
 Rules
+- **The day timer is the master timer.** A task timer can only start while the day timer is running. Pausing (break) or ending the day pauses every running task timer automatically.
+- **End of shift:** when the clock reaches the schedule's end time the day timer is paused automatically (stamped at exactly the end time, `WorkEvent.auto = true`) and all task timers pause with it. The person may resume afterwards to keep working; the system does not pause again after a deliberate resume. Enforced by a 1-minute sweep (`src/instrumentation.ts`) plus a lazy check on attendance/task reads.
+- **Team oversight:** LEAD and above can open `/team` to see everyone ranked below them — live status, tasks, and a 7/30/90-day work-culture score (attendance, punctuality, daily target met, on-time tasks). `GET /api/team`, `GET /api/team/{id}`.
+- Any active user, of any role, can be added to a project by a project manager (`GET /api/directory` feeds the picker).
 - A user can run **one** task timer at a time (starting another returns 409 with the running task).
 - Worked time is accumulated per task (`workedSeconds`) and returned live in `workedMinutes`.
 - A task with sub-tasks can only be completed when every direct sub-task is COMPLETED or ENDED.

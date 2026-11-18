@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { X, Video, MapPin, Clock, Pencil, XCircle, Check, HelpCircle, Users } from "lucide-react";
+import { X, Video, MapPin, Clock, Pencil, XCircle, Check, HelpCircle, Users, Mail, Target, CalendarCheck2, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { useGoogleStatus } from "./google-connect";
 import { api } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth";
 import { fmtDayHeading, fmtTime, isoToIst, istToIso, ROLE_LABEL } from "@/lib/client/format";
@@ -24,17 +26,58 @@ export function meetingPhase(m: { startsAt: string; endsAt: string; status: stri
 
 export const timeRange = (m: { startsAt: string; endsAt: string }) => `${fmtTime(m.startsAt)} – ${fmtTime(m.endsAt)}`;
 
-export function MeetingFormModal({ meeting, onClose, onSaved }: { meeting?: any; onClose: () => void; onSaved: () => void }) {
+/** Explains what happened with Google / guest emails after a save. */
+export function calendarNote(c: any) {
+  if (!c) return "";
+  if (c.google === "synced") return " Added to your Google Calendar — Google emailed the invites.";
+  if (c.google === "failed") return ` Google Calendar sync failed (${c.error}).${c.guestsEmailed ? ` ${c.guestsEmailed} guest(s) emailed instead.` : ""}`;
+  return c.guestsEmailed ? ` ${c.guestsEmailed} guest invite(s) emailed.` : "";
+}
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** External guests by email — people outside PAL. No account is created for them. */
+export function GuestInput({ value, onChange }: { value: { email: string; name?: string }[]; onChange: (v: { email: string; name?: string }[]) => void }) {
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
+  const ok = EMAIL_RE.test(email.trim());
+  function add() {
+    const e = email.trim().toLowerCase();
+    if (!EMAIL_RE.test(e) || value.some((g) => g.email === e)) return;
+    onChange([...value, { email: e, ...(name.trim() && { name: name.trim() }) }]);
+    setEmail(""); setName("");
+  }
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <input className="input" type="email" placeholder="guest@client.com" value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }} />
+        <input className="input" placeholder="Name (optional)" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }} />
+        <button type="button" className="btn" disabled={!ok} onClick={add}>Add</button>
+      </div>
+      {value.length > 0 && (
+        <div className="actions" style={{ marginTop: 8, flexWrap: "wrap" }}>
+          {value.map((g) => <span key={g.email} className="badge b-gray"><Mail size={11} /> {g.name ? `${g.name} <${g.email}>` : g.email} <button type="button" className="btn btn-ghost btn-sm" style={{ padding: 0, height: "auto" }} onClick={() => onChange(value.filter((x) => x.email !== g.email))}><Trash2 size={11} /></button></span>)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function MeetingFormModal({ meeting, lead, defaults, onClose, onSaved }: { meeting?: any; lead?: { id: number; name: string; company?: string | null; email?: string | null; stage?: string }; defaults?: { title?: string; isDemo?: boolean }; onClose: () => void; onSaved: () => void }) {
+  const google = useGoogleStatus();
   const { user } = useAuth();
   const toast = useToast();
   const start = meeting ? isoToIst(meeting.startsAt) : null;
   const end = meeting ? isoToIst(meeting.endsAt) : null;
   const today = isoToIst(new Date().toISOString()).date;
   const [f, setF] = useState({
-    title: meeting?.title ?? "", agenda: meeting?.agenda ?? "", link: meeting?.link ?? "", location: meeting?.location ?? "",
+    title: meeting?.title ?? defaults?.title ?? "", agenda: meeting?.agenda ?? "", link: meeting?.link ?? "", location: meeting?.location ?? "",
     date: start?.date ?? today, startTime: start?.time ?? "10:00", endTime: end?.time ?? "11:00", projectId: meeting?.projectId ? String(meeting.projectId) : "",
   });
   const [ids, setIds] = useState<number[]>(meeting ? meeting.attendees.map((a: any) => a.userId) : []);
+  const [guests, setGuests] = useState<{ email: string; name?: string }[]>(meeting ? meeting.guests.map((g: any) => ({ email: g.email, ...(g.name && { name: g.name }) })) : lead?.email ? [{ email: lead.email, name: lead.name }] : []);
+  const [isDemo, setIsDemo] = useState(!!defaults?.isDemo);
+  const [syncGoogle, setSyncGoogle] = useState(true);
   const [people, setPeople] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
   const [q, setQ] = useState("");
@@ -61,11 +104,14 @@ export function MeetingFormModal({ meeting, onClose, onSaved }: { meeting?: any;
       const body = {
         title: f.title, agenda: f.agenda || (meeting ? null : undefined), link: f.link || (meeting ? null : undefined), location: f.location || (meeting ? null : undefined),
         startsAt: istToIso(f.date, f.startTime), endsAt: istToIso(f.date, f.endTime),
-        projectId: f.projectId ? Number(f.projectId) : null, attendeeIds: ids,
+        projectId: f.projectId ? Number(f.projectId) : null, attendeeIds: ids, guests,
+        ...(!meeting && lead && { leadId: lead.id, isDemo }),
+        ...(!meeting && { syncGoogle }),
       };
       const r = meeting ? await api(`/api/meetings/${meeting.id}`, { method: "PATCH", body }) : await api("/api/meetings", { body });
       const n = r.conflicts?.length ?? 0;
-      toast(n ? `${meeting ? "Updated" : "Scheduled"} — heads-up: it overlaps ${n} other meeting${n > 1 ? "s" : ""} (e.g. “${r.conflicts[0].title}”)` : meeting ? "Meeting updated" : "Meeting scheduled");
+      const cal = calendarNote(r.calendar);
+      toast((n ? `${meeting ? "Updated" : "Scheduled"} — heads-up: it overlaps ${n} other meeting${n > 1 ? "s" : ""} (e.g. “${r.conflicts[0].title}”).` : meeting ? "Meeting updated." : "Meeting scheduled.") + cal, r.calendar?.google === "failed");
       onSaved();
     } catch (e) { setErr(e instanceof Error ? e.message : "Failed"); setBusy(false); }
   }
@@ -95,6 +141,21 @@ export function MeetingFormModal({ meeting, onClose, onSaved }: { meeting?: any;
           <input className="input" style={{ marginBottom: 8 }} placeholder="Search people…" value={q} onChange={(e) => setQ(e.target.value)} />
           <PeoplePicker options={options} value={ids} onChange={setIds} meId={user!.id} />
         </Field>
+        <Field label={`External guests (${guests.length})`} hint="Clients or anyone outside PAL — invited by email, no account needed.">
+          <GuestInput value={guests} onChange={setGuests} />
+        </Field>
+        {lead && !meeting && (
+          <div className="alert alert-info" style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            <Target size={16} /> <span style={{ flex: 1 }}>Linked to lead <b>{lead.name}</b>{lead.company ? ` (${lead.company})` : ""} — logged in the lead journey.</span>
+            <label style={{ display: "inline-flex", gap: 6, alignItems: "center" }}><input type="checkbox" checked={isDemo} onChange={(e) => setIsDemo(e.target.checked)} /> This is a demo</label>
+          </div>
+        )}
+        {!meeting && google?.configured && (
+          <label className="hint" style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 14 }}>
+            <input type="checkbox" checked={syncGoogle && google.connected} disabled={!google.connected} onChange={(e) => setSyncGoogle(e.target.checked)} />
+            <CalendarCheck2 size={14} /> {google.connected ? <>Add to my Google Calendar ({google.email}) — creates a Meet link if none is given and emails everyone the invite</> : <>Connect Google Calendar on the Meetings page to add this to your calendar</>}
+          </label>
+        )}
         <Field label="Agenda" hint="Optional — supports formatting"><RichTextEditor value={f.agenda} onChange={(html) => setF((s) => ({ ...s, agenda: html }))} placeholder="Topics to cover, goals, pre-reads…" minHeight={110} /></Field>
       </form>
     </Modal>
@@ -143,6 +204,8 @@ export function MeetingDrawer({ meetingId, onClose, onChanged }: { meetingId: nu
               {phase === "soon" && <span className="badge b-amber">Starting soon</span>}
               {m.status === "CANCELLED" && <span className="badge b-red">Cancelled</span>}
               {m.project && <span className="badge b-purple">{m.project.name}</span>}
+              {m.lead && <Link href={`/leads/${m.lead.id}`} className="badge b-amber"><Target size={12} /> {m.lead.name}{m.lead.company ? ` · ${m.lead.company}` : ""}</Link>}
+              {m.googleEventId && <span className="badge b-green"><CalendarCheck2 size={12} /> Google Calendar</span>}
             </div>
           </div>
           <button className="btn btn-ghost btn-sm" onClick={onClose}><X size={20} /></button>
@@ -157,6 +220,7 @@ export function MeetingDrawer({ meetingId, onClose, onChanged }: { meetingId: nu
                 ))}
               </div>
             )}
+            {m.google?.htmlLink && <a className="btn" href={m.google.htmlLink} target="_blank" rel="noreferrer"><CalendarCheck2 size={15} /> Open in Google</a>}
             {canManage && m.status !== "CANCELLED" && <><button className="btn" onClick={() => setEdit(true)}><Pencil size={15} /> Edit</button><button className="btn" onClick={() => setCancelling(true)}><XCircle size={15} /> Cancel meeting</button></>}
           </div>
 
@@ -169,13 +233,16 @@ export function MeetingDrawer({ meetingId, onClose, onChanged }: { meetingId: nu
           <h4 style={{ marginBottom: 8 }}>Agenda</h4>
           <div style={{ marginBottom: 22 }}>{m.agenda ? <RichText html={m.agenda} /> : <p className="hint">No agenda added.</p>}</div>
 
-          <h4 style={{ marginBottom: 8 }}>Attendees ({m.attendees.length + 1})</h4>
+          <h4 style={{ marginBottom: 8 }}>Attendees ({m.attendees.length + 1 + (m.guests?.length ?? 0)})</h4>
           <p className="hint" style={{ marginBottom: 8 }}>{counts.ACCEPTED ?? 0} going · {counts.TENTATIVE ?? 0} maybe · {counts.DECLINED ?? 0} declined · {counts.INVITED ?? 0} awaiting</p>
           <div className="subtask" style={{ cursor: "default" }}><Avatar name={m.organizer.name} small /><span style={{ flex: 1 }}>{m.organizer.name} <span className="hint">· organiser</span></span></div>
           {m.attendees.map((a: any) => {
             const [cls, lbl] = RSVP_TONE[a.response];
             return <div key={a.id} className="subtask" style={{ cursor: "default" }}><Avatar name={a.user.name} small /><span style={{ flex: 1 }}>{a.user.name} <span className="hint">· {a.user.designation || ROLE_LABEL[a.user.role]}</span></span><span className={`badge ${cls}`}>{lbl}</span></div>;
           })}
+          {(m.guests ?? []).map((g: any) => (
+            <div key={g.id} className="subtask" style={{ cursor: "default" }}><Avatar name={g.name || g.email} small /><span style={{ flex: 1 }}>{g.name || g.email} <span className="hint">· external guest{g.name ? ` · ${g.email}` : ""}</span></span><span className="badge b-gray"><Mail size={11} /> Emailed</span></div>
+          ))}
         </div>
       </div>
       {edit && <MeetingFormModal meeting={m} onClose={() => setEdit(false)} onSaved={async () => { setEdit(false); await load(); onChanged(); }} />}

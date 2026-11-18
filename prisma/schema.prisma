@@ -68,6 +68,11 @@ model User {
   reviewTasks       Task[]            @relation("TaskReviewer")
   taskEvents        TaskEvent[]
   taskComments      TaskComment[]
+  leadsOwned        Lead[]            @relation("LeadOwner")
+  leadsCreated      Lead[]            @relation("LeadCreator")
+  leadActivities    LeadActivity[]
+  leadFollowUps     LeadFollowUp[]    @relation("FollowUpAssignee")
+  googleAccount     GoogleAccount?
 
   @@map("users")
 }
@@ -171,6 +176,8 @@ model WorkEvent {
   attendanceId Int
   type         WorkEventType
   at           DateTime      @default(now())
+  /// True when the system paused the day automatically (end of shift reached)
+  auto         Boolean       @default(false)
 
   attendance AttendanceDay @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
 
@@ -384,7 +391,11 @@ enum NotificationType {
   MEETING_INVITE
   MEETING_UPDATED
   MEETING_CANCELLED
+  MEETING_REMINDER
   LEAVE_DECIDED
+  LEAD_ASSIGNED
+  LEAD_FOLLOW_UP_ASSIGNED
+  LEAD_FOLLOW_UP_DUE
 }
 
 model Notification {
@@ -529,26 +540,36 @@ enum RsvpStatus {
 }
 
 model Meeting {
-  id          Int           @id @default(autoincrement())
-  title       String
+  id             Int           @id @default(autoincrement())
+  title          String
   /// Rich-text agenda (sanitised HTML)
-  agenda      String?       @db.Text
+  agenda         String?       @db.Text
   /// Video-call / meeting URL
-  link        String?
-  location    String?
-  startsAt    DateTime
-  endsAt      DateTime
-  status      MeetingStatus @default(SCHEDULED)
-  projectId   Int?
-  organizerId Int
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  link           String?
+  location       String?
+  startsAt       DateTime
+  endsAt         DateTime
+  status         MeetingStatus @default(SCHEDULED)
+  projectId      Int?
+  /// Sales meeting / demo with a lead
+  leadId         Int?
+  organizerId    Int
+  /// Set once the "starts in 5 minutes" reminder has gone out (cleared when the time changes)
+  reminderSentAt DateTime?
+  /// Event in the organiser's Google Calendar, when they have connected it
+  googleEventId  String?
+  googleHtmlLink String?       @db.Text
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
   organizer User              @relation("MeetingOrganizer", fields: [organizerId], references: [id])
   project   Project?          @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  lead      Lead?             @relation(fields: [leadId], references: [id], onDelete: SetNull)
   attendees MeetingAttendee[]
+  guests    MeetingGuest[]
 
   @@index([startsAt])
+  @@index([leadId])
   @@index([organizerId])
   @@map("meetings")
 }
@@ -566,4 +587,185 @@ model MeetingAttendee {
   @@unique([meetingId, userId])
   @@index([userId])
   @@map("meeting_attendees")
+}
+
+/// Someone outside PAL invited to a meeting by email (a client, a lead's colleague…). No user account is created.
+model MeetingGuest {
+  id        Int        @id @default(autoincrement())
+  meetingId Int
+  email     String
+  name      String?
+  response  RsvpStatus @default(INVITED)
+  createdAt DateTime   @default(now())
+
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@unique([meetingId, email])
+  @@map("meeting_guests")
+}
+
+/// A user's connected Google account, used to put meetings in their Google Calendar.
+model GoogleAccount {
+  id              Int       @id @default(autoincrement())
+  userId          Int       @unique
+  email           String
+  /// OAuth refresh token, encrypted with encryptSecret()
+  refreshTokenEnc String    @db.Text
+  accessToken     String?   @db.Text
+  expiresAt       DateTime?
+  calendarId      String    @default("primary")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("google_accounts")
+}
+
+// ───────────────────────── Leads (sales pipeline) ─────────────────────────
+
+/// NEW -> CONTACTED -> MQL -> SQL -> DEMO_SCHEDULED -> DEMO_DONE -> PROPOSAL -> NEGOTIATION -> WON | LOST. See docs/LEADS.md
+enum LeadStage {
+  NEW
+  CONTACTED
+  MQL
+  SQL
+  DEMO_SCHEDULED
+  DEMO_DONE
+  PROPOSAL
+  NEGOTIATION
+  WON
+  LOST
+}
+
+enum LeadTemperature {
+  HOT
+  WARM
+  COLD
+}
+
+enum LeadSource {
+  WEBSITE
+  REFERRAL
+  SOCIAL_MEDIA
+  EMAIL_CAMPAIGN
+  COLD_CALL
+  EVENT
+  PARTNER
+  ADVERTISEMENT
+  OTHER
+}
+
+enum LeadActivityType {
+  CREATED
+  UPDATED
+  STAGE_CHANGED
+  TEMPERATURE_CHANGED
+  OWNER_CHANGED
+  NOTE
+  CALL
+  EMAIL
+  WHATSAPP
+  MEETING_SCHEDULED
+  MEETING_CANCELLED
+  FOLLOW_UP_SCHEDULED
+  FOLLOW_UP_DONE
+  FOLLOW_UP_CANCELLED
+}
+
+enum FollowUpType {
+  CALL
+  EMAIL
+  WHATSAPP
+  MEETING
+  OTHER
+}
+
+enum FollowUpStatus {
+  PENDING
+  DONE
+  CANCELLED
+}
+
+model Lead {
+  id             Int             @id @default(autoincrement())
+  name           String
+  company        String?
+  designation    String?
+  email          String?
+  phone          String?
+  website        String?
+  source         LeadSource      @default(OTHER)
+  stage          LeadStage       @default(NEW)
+  temperature    LeadTemperature @default(WARM)
+  /// Expected deal value
+  value          Decimal?        @db.Decimal(14, 2)
+  currency       String          @default("INR")
+  /// What they need / requirement summary
+  requirement    String?         @db.Text
+  tags           String?
+  lostReason     String?         @db.Text
+  ownerId        Int
+  createdById    Int
+  /// Earliest pending follow-up (denormalised for sorting / filtering)
+  nextFollowUpAt DateTime?
+  lastActivityAt DateTime        @default(now())
+  wonAt          DateTime?
+  lostAt         DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  owner      User           @relation("LeadOwner", fields: [ownerId], references: [id])
+  creator    User           @relation("LeadCreator", fields: [createdById], references: [id])
+  activities LeadActivity[]
+  followUps  LeadFollowUp[]
+  meetings   Meeting[]
+
+  @@index([ownerId, stage])
+  @@index([stage])
+  @@index([nextFollowUpAt])
+  @@map("leads")
+}
+
+/// The lead journey: every stage / temperature change, call, note, meeting and follow-up.
+model LeadActivity {
+  id        Int              @id @default(autoincrement())
+  leadId    Int
+  type      LeadActivityType
+  actorId   Int
+  fromValue String?
+  toValue   String?
+  note      String?          @db.Text
+  meetingId Int?
+  at        DateTime         @default(now())
+
+  lead  Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  actor User @relation(fields: [actorId], references: [id])
+
+  @@index([leadId, at])
+  @@map("lead_activities")
+}
+
+model LeadFollowUp {
+  id             Int            @id @default(autoincrement())
+  leadId         Int
+  type           FollowUpType   @default(CALL)
+  dueAt          DateTime
+  note           String?        @db.Text
+  assigneeId     Int
+  status         FollowUpStatus @default(PENDING)
+  outcome        String?        @db.Text
+  doneAt         DateTime?
+  /// Set once the "due in 5 minutes" reminder has gone out
+  reminderSentAt DateTime?
+  createdById    Int
+  createdAt      DateTime       @default(now())
+
+  lead     Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  assignee User @relation("FollowUpAssignee", fields: [assigneeId], references: [id])
+
+  @@index([assigneeId, status, dueAt])
+  @@index([leadId, status])
+  @@index([status, dueAt])
+  @@map("lead_follow_ups")
 }
