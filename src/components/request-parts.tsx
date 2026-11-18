@@ -6,6 +6,7 @@ import { api } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth";
 import { fmtDate, fmtDateTime, ROLE_LABEL } from "@/lib/client/format";
 import { REQUEST_TYPES, REQUEST_TYPE_MAP, type FieldDef } from "@/lib/request-types";
+import { PalNo } from "./pal-no";
 import { Avatar, ConfirmDelete, Field, Loading, Modal, PriorityBadge, Spinner, useToast } from "./ui";
 import { RichText, RichTextEditor } from "./rich-text";
 
@@ -171,7 +172,7 @@ export function RequestDrawer({ requestId, onClose, onChanged }: { requestId: nu
       <div className="drawer">
         <div className="drawer-head">
           <div>
-            <div className="crumbs">{def.label} · #{r.id}</div>
+            <div className="crumbs"><PalNo n={r.palNo} copy /> {def.label}</div>
             <h2 style={{ fontSize: 20 }}>{r.title}</h2>
             <div className="actions" style={{ marginTop: 8 }}><RequestStatus status={r.status} /><PriorityBadge priority={r.priority} />{r.resubmitCount > 0 && <span className="badge b-gray">Resubmitted ×{r.resubmitCount}</span>}</div>
           </div>

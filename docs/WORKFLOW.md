@@ -64,3 +64,15 @@ Rules
 | Meeting | organiser; SUPER_ADMIN / COMPANY_HEAD | If it is still upcoming, invitees are notified, external guests emailed a cancellation, the Google Calendar event removed and the lead journey updated first. |
 
 Notifications that pointed at the deleted item are removed as well.
+
+## PAL-NO (reference numbers)
+
+Every task and every request gets a company-wide number from one shared sequence, shown as **PAL-0001**, PAL-0002, … in creation order (`pal_numbers` issues them with AUTO_INCREMENT, so two people creating at the same moment never get the same number; a failed create may leave a gap). Existing tasks and requests were numbered oldest-first by the `20260112000000_pal_no` migration.
+
+- Search boxes (My tasks, project board, Requests, Team) accept `PAL-0012`, `pal 12`, `#12` or `12`.
+- The top bar's **Go to PAL-…** box opens the task or request directly (`GET /api/lookup?q=PAL-0012`, respects permissions).
+- Click the number in a task / request panel to copy it.
+
+## My tasks → Assigned by me
+
+`GET /api/tasks/me?role=assigner`: tasks you created or assigned to someone, that have at least one other person on them. Shows each person's progress (not started / working now / paused / finished / declined) and filters by person, progress, status, priority, project, due date, task vs sub-task, plus search and sort.

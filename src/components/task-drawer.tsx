@@ -6,6 +6,7 @@ import { api } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth";
 import { fmtDateTime, fmtDate, fmtDuration, fmtMinutes } from "@/lib/client/format";
 import { useNotifications } from "@/lib/client/notifications";
+import { PalNo } from "./pal-no";
 import { Avatar, ConfirmDelete, Loading, Modal, PriorityBadge, StatusBadge, useToast, Field } from "./ui";
 import { TaskFormModal, PeoplePicker, assignableMembers, type Member } from "./task-form";
 import { RichText, RichTextEditor } from "./rich-text";
@@ -122,7 +123,7 @@ export function TaskDrawer({ taskId, onClose, onChanged }: { taskId: number; onC
       <div className="drawer">
         <div className="drawer-head">
           <div>
-            <div className="crumbs">{task.project.name}{task.parent && <> <span>›</span> <a className="parent-link" onClick={() => setOpenId(task.parent.id)} title="Open the parent task">↑ {task.parent.title}</a></>}</div>
+            <div className="crumbs"><PalNo n={task.palNo} copy /> {task.project.name}{task.parent && <> <span>›</span> <a className="parent-link" onClick={() => setOpenId(task.parent.id)} title="Open the parent task">↑ {task.parent.title}</a></>}</div>
             <h2 style={{ fontSize: 20 }}>{task.title}</h2>
             <div className="actions" style={{ marginTop: 8 }}>
               <StatusBadge status={status} /> <PriorityBadge priority={task.priority} />

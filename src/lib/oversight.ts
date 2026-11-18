@@ -173,7 +173,7 @@ export async function memberDetail(target: { id: number }, days = 30) {
     cultureFor([target.id], days),
     prisma.taskAssignee.findMany({
       where: { userId: target.id, status: "ASSIGNED" },
-      include: { task: { select: { id: true, title: true, status: true, priority: true, dueDate: true, estimatedMinutes: true, completedAt: true, project: { select: { id: true, name: true } }, _count: { select: { subtasks: true } } } } },
+      include: { task: { select: { id: true, palNo: true, title: true, status: true, priority: true, dueDate: true, estimatedMinutes: true, completedAt: true, project: { select: { id: true, name: true } }, _count: { select: { subtasks: true } } } } },
       orderBy: { createdAt: "desc" },
     }),
     prisma.projectMember.findMany({
@@ -193,6 +193,7 @@ export async function memberDetail(target: { id: number }, days = 30) {
     const status = personalStatus(a.task.status, a.doneAt);
     return {
       id: a.task.id,
+      palNo: a.task.palNo,
       title: a.task.title,
       status,
       priority: a.task.priority,

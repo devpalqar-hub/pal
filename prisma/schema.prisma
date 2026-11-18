@@ -268,6 +268,8 @@ model ProjectMember {
 
 model Task {
   id               Int          @id @default(autoincrement())
+  /// Company-wide reference shown as PAL-0001 (shared sequence with requests, see PalNumber)
+  palNo            Int          @unique
   projectId        Int
   /// Parent task: a task can be broken into many sub-tasks.
   parentId         Int?
@@ -479,6 +481,8 @@ enum RequestEventType {
 
 model ServiceRequest {
   id            Int           @id @default(autoincrement())
+  /// Company-wide reference shown as PAL-0001 (shared sequence with tasks, see PalNumber)
+  palNo         Int           @unique
   type          RequestType
   title         String
   description   String?       @db.Text
@@ -770,4 +774,14 @@ model LeadFollowUp {
   @@index([leadId, status])
   @@index([status, dueAt])
   @@map("lead_follow_ups")
+}
+
+/// Issues the PAL-NO sequence: one row per number, so concurrent creates can never get the same number.
+model PalNumber {
+  id        Int      @id @default(autoincrement())
+  /// TASK | REQUEST
+  kind      String   @db.VarChar(16)
+  createdAt DateTime @default(now())
+
+  @@map("pal_numbers")
 }

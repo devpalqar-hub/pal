@@ -1,10 +1,11 @@
 "use client";
 
 import { use, useCallback, useEffect, useState } from "react";
-import { Plus, UserPlus, Trash2, CalendarDays, Layers } from "lucide-react";
+import { Plus, UserPlus, Trash2, CalendarDays, Layers, Search } from "lucide-react";
+import { PalNo } from "@/components/pal-no";
 import { api } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth";
-import { fmtDate, fmtMinutes, fmtDuration } from "@/lib/client/format";
+import { fmtDate, fmtMinutes, fmtDuration, matchesQuery } from "@/lib/client/format";
 import { RichText, RichTextEditor } from "@/components/rich-text";
 import { Avatar, Empty, Field, Loading, Modal, PageHeader, PriorityBadge, RoleBadge, StatusBadge, useToast } from "@/components/ui";
 import { TaskFormModal } from "@/components/task-form";
@@ -29,6 +30,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   const [openTask, setOpenTask] = useState<number | null>(null);
   const [addMember, setAddMember] = useState(false);
   const [mine, setMine] = useState(false);
+  const [q, setQ] = useState("");
   const [editDesc, setEditDesc] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -40,7 +42,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
 
   if (!data || !tasks) return <Loading />;
   const { project, canManage, taskCounts, progress, loggedSeconds, estimatedMinutes, timeByMember, workingNow } = data;
-  const visible = mine ? tasks.filter((t) => t.assignees.some((a: any) => a.userId === user!.id && a.status === "ASSIGNED")) : tasks;
+  const visible = (mine ? tasks.filter((t) => t.assignees.some((a: any) => a.userId === user!.id && a.status === "ASSIGNED")) : tasks).filter((t) => matchesQuery(t, q));
 
   async function removeMember(uid: number) {
     try { await api(`/api/projects/${id}/members/${uid}`, { method: "DELETE" }); toast("Member removed"); load(); }
@@ -110,6 +112,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
       {tab === "board" && (
         <>
           <div className="toolbar">
+            <div className="input-wrap" style={{ minWidth: 240 }}><Search size={15} style={{ top: 12 }} /><input className="input" placeholder="Search title or PAL-0012…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
             <label className="chip" style={{ display: "inline-flex", gap: 8, alignItems: "center" }}><input type="checkbox" checked={mine} onChange={(e) => setMine(e.target.checked)} /> Assigned to me</label>
             <label className="chip" style={{ display: "inline-flex", gap: 8, alignItems: "center" }}><input type="checkbox" checked={showSubs} onChange={(e) => setShowSubs(e.target.checked)} /> Include sub-tasks</label>
           </div>
@@ -121,7 +124,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                   <div className="column-head"><span>{col.title}</span><span className="count">{items.length}</span></div>
                   {items.map((t) => (
                     <div key={t.id} className="task-card" onClick={() => setOpenTask(t.id)}>
-                      <div className="task-title">{t.title}</div>
+                      <div className="task-title"><PalNo n={t.palNo} /> {t.title}</div>
                       <div className="task-meta">
                         <PriorityBadge priority={t.priority} />
                         {t.status !== "TODO" && t.status !== "IN_PROGRESS" && <StatusBadge status={t.status} />}

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { fmtPalNo, nextPalNo } from "@/lib/pal-no";
 import type { Prisma, TaskStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { authed, parseBody, parseId } from "@/lib/http";
@@ -52,6 +53,7 @@ export const POST = authed<P>(async (req, actor, { id }) => {
   const task = await prisma.task.create({
     data: {
       ...data,
+      palNo: await nextPalNo("TASK"),
       projectId: pid,
       parentId,
       assigneeId: ids[0] ?? null,
@@ -68,7 +70,7 @@ export const POST = authed<P>(async (req, actor, { id }) => {
     include: taskInclude,
   });
   for (const userId of ids.filter((u) => u !== actor.id)) {
-    await notify({ userId, type: "TASK_ASSIGNED", title: `New task: ${task.title}`, body: `${actor.name} assigned you a task in ${access.project.name}${ids.length > 1 ? ` (shared with ${ids.length - 1} other${ids.length > 2 ? "s" : ""})` : ""}.`, taskId: task.id });
+    await notify({ userId, type: "TASK_ASSIGNED", title: `New task ${fmtPalNo(task.palNo)}: ${task.title}`, body: `${actor.name} assigned you a task in ${access.project.name}${ids.length > 1 ? ` (shared with ${ids.length - 1} other${ids.length > 2 ? "s" : ""})` : ""}.`, taskId: task.id });
   }
   return NextResponse.json({ task: withLiveTime(task, actor.id) }, { status: 201 });
 });

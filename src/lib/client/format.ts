@@ -52,3 +52,21 @@ export function isoToIst(iso: string) {
   };
 }
 export const fmtDayHeading = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", timeZone: IST });
+
+/** Company-wide reference for tasks and requests, e.g. PAL-0012. */
+export const fmtPalNo = (n?: number | null) => (n ? `PAL-${String(n).padStart(4, "0")}` : "");
+/** "PAL-0012", "pal 12", "#12", "12" → 12; anything else → null. */
+export function parsePalNo(q?: string | null): number | null {
+  const m = q?.trim().match(/^(?:pal[\s\-_#]*|#)?0*(\d{1,9})$/i);
+  return m ? Number(m[1]) : null;
+}
+/** Search box match: title contains the text, or the text is this item's PAL number. */
+export function matchesQuery(item: { title: string; palNo?: number | null }, q: string) {
+  const t = q.trim().toLowerCase();
+  if (!t) return true;
+  if (item.title.toLowerCase().includes(t)) return true;
+  const no = parsePalNo(t);
+  if (no !== null && no === item.palNo) return true;
+  // partial "PAL-00" style typing
+  return t.startsWith("pal") && fmtPalNo(item.palNo).toLowerCase().startsWith(t.replace(/\s+/g, "-"));
+}

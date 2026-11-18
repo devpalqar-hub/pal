@@ -7,6 +7,7 @@ import { createRequestSchema } from "@/lib/validation";
 import { validateForm } from "@/lib/request-types";
 import { notify } from "@/lib/notify";
 import { requestInclude } from "@/lib/requests";
+import { fmtPalNo, nextPalNo, parsePalNo } from "@/lib/pal-no";
 
 /**
  * ?box=incoming (assigned to me, default) | sent (I raised) | all (SUPER_ADMIN / COMPANY_HEAD)
@@ -22,7 +23,10 @@ export const GET = authed(async (req, actor) => {
   } else where.assigneeId = actor.id;
   if (q.get("status")) where.status = q.get("status") as RequestStatus;
   if (q.get("type")) where.type = q.get("type") as RequestType;
-  if (q.get("q")) where.title = { contains: q.get("q")! };
+  if (q.get("q")) {
+    const no = parsePalNo(q.get("q"));
+    where.OR = [{ title: { contains: q.get("q")! } }, ...(no ? [{ palNo: no }] : [])];
+  }
 
   const requests = await prisma.serviceRequest.findMany({ where, include: requestInclude, orderBy: { updatedAt: "desc" }, take: 200 });
   return NextResponse.json({ requests });
@@ -43,9 +47,9 @@ export const POST = authed(async (req, actor) => {
   if ("errors" in form) return NextResponse.json({ error: { fieldErrors: Object.fromEntries(Object.entries(form.errors).map(([k, v]) => [k, [v]])), formErrors: [] } }, { status: 400 });
 
   const request = await prisma.serviceRequest.create({
-    data: { ...rest, data: form.data, requesterId: actor.id, dueDate: dueDate ? new Date(dueDate) : undefined, events: { create: { type: "SENT", actorId: actor.id } } },
+    data: { ...rest, palNo: await nextPalNo("REQUEST"), data: form.data, requesterId: actor.id, dueDate: dueDate ? new Date(dueDate) : undefined, events: { create: { type: "SENT", actorId: actor.id } } },
     include: requestInclude,
   });
-  await notify({ userId: request.assigneeId, type: "REQUEST_RECEIVED", title: `New request: ${request.title}`, body: `${actor.name} sent you a request that needs your approval.`, link: `/requests?open=${request.id}` });
+  await notify({ userId: request.assigneeId, type: "REQUEST_RECEIVED", title: `New request ${fmtPalNo(request.palNo)}: ${request.title}`, body: `${actor.name} sent you a request that needs your approval.`, link: `/requests?open=${request.id}` });
   return NextResponse.json({ request }, { status: 201 });
 });

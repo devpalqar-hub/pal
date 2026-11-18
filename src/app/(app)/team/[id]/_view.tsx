@@ -2,9 +2,11 @@
 
 import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { PalNo } from "@/components/pal-no";
 import { Search, LayoutDashboard, ListChecks, CalendarDays, UserRound, Mail, Briefcase, Clock, CalendarOff, FolderKanban } from "lucide-react";
 import { api } from "@/lib/client/api";
-import { DAY_NAMES, ROLE_LABEL, fmtDate, fmtDuration, fmtMinutes, fmtTime, isoDate } from "@/lib/client/format";
+import { DAY_NAMES, ROLE_LABEL, fmtDate, fmtDuration, fmtMinutes, fmtTime, isoDate, matchesQuery } from "@/lib/client/format";
 import { Avatar, Empty, Loading, PageHeader, PriorityBadge, RoleBadge, StatusBadge, useToast } from "@/components/ui";
 import { PRESENCE_COLORS, PRESENCE_LABELS, Ring, WeekBars, fmtH } from "@/components/charts";
 import { CULTURE_TONE } from "../_view";
@@ -87,6 +89,7 @@ function Overview({ d }: { d: any }) {
 }
 
 function Tasks({ tasks }: { tasks: any[] }) {
+  const router = useRouter();
   const [f, setF] = useState({ q: "", status: "open", project: "", priority: "", overdue: false, running: false, sort: "due" });
   const projects = useMemo(() => [...new Map(tasks.map((t) => [t.project.id, t.project])).values()], [tasks]);
   const shown = useMemo(() => {
@@ -94,7 +97,7 @@ function Tasks({ tasks }: { tasks: any[] }) {
     const rank: Record<string, number> = { URGENT: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
     return tasks
       .filter((t) => (!group.length || group.includes(t.status)) && (!f.project || String(t.project.id) === f.project) && (!f.priority || t.priority === f.priority)
-        && (!f.overdue || t.overdue) && (!f.running || t.isRunning) && (!f.q || t.title.toLowerCase().includes(f.q.toLowerCase())))
+        && (!f.overdue || t.overdue) && (!f.running || t.isRunning) && matchesQuery(t, f.q))
       .sort((a, b) => {
         if (f.sort === "priority") return rank[a.priority] - rank[b.priority];
         if (f.sort === "time") return b.workedSeconds - a.workedSeconds;
@@ -108,7 +111,7 @@ function Tasks({ tasks }: { tasks: any[] }) {
       <div className="toolbar">
         <div style={{ position: "relative", flex: 1, minWidth: 180 }}>
           <Search size={15} style={{ position: "absolute", left: 10, top: 11, color: "var(--muted)" }} />
-          <input className="input" style={{ paddingLeft: 32, width: "100%" }} placeholder="Search tasks…" value={f.q} onChange={(e) => setF({ ...f, q: e.target.value })} />
+          <input className="input" style={{ paddingLeft: 32, width: "100%" }} placeholder="Search title or PAL-0012…" value={f.q} onChange={(e) => setF({ ...f, q: e.target.value })} />
         </div>
         <div className="seg">{STATUS_GROUPS.map(([k, l]) => <button key={k} className={f.status === k ? "on" : ""} onClick={() => setF({ ...f, status: k })}>{l}</button>)}</div>
         <select className="select" value={f.project} onChange={(e) => setF({ ...f, project: e.target.value })}><option value="">All projects</option>{projects.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
@@ -121,12 +124,13 @@ function Tasks({ tasks }: { tasks: any[] }) {
         <div className="card-head"><h3>{shown.length} task{shown.length === 1 ? "" : "s"}</h3><span className="hint">{fmtDuration(total)} logged</span></div>
         {shown.length === 0 ? <Empty title="No tasks match these filters" /> : (
           <div className="table-wrap"><table className="table">
-            <thead><tr><th>Task</th><th>Project</th><th>Status</th><th>Priority</th><th>Due</th><th>Time</th></tr></thead>
+            <thead><tr><th>No.</th><th>Task</th><th>Project</th><th>Status</th><th>Priority</th><th>Due</th><th>Time</th></tr></thead>
             <tbody>
               {shown.map((t) => (
-                <tr key={t.id}>
+                <tr key={t.id} className="click" onClick={() => router.push(`/tasks?open=${t.id}`)}>
+                  <td><PalNo n={t.palNo} /></td>
                   <td style={{ fontWeight: 600 }}>{t.isRunning && <span className="timer-dot" style={{ marginRight: 6 }} />}{t.title}</td>
-                  <td><Link href={`/projects/${t.project.id}`} style={{ color: "var(--primary)" }}>{t.project.name}</Link></td>
+                  <td><Link href={`/projects/${t.project.id}`} onClick={(e) => e.stopPropagation()} style={{ color: "var(--primary)" }}>{t.project.name}</Link></td>
                   <td><StatusBadge status={t.status} />{t.overdue && <span className="badge b-red" style={{ marginLeft: 6 }}>Overdue</span>}</td>
                   <td><PriorityBadge priority={t.priority} /></td>
                   <td>{fmtDate(t.dueDate)}</td>

@@ -8,6 +8,7 @@ import { useAuth } from "@/lib/client/auth";
 import { MailProvider, useMail } from "@/lib/client/mail";
 import { NotificationProvider, useNotifications } from "@/lib/client/notifications";
 import { NotificationBell } from "./notification-bell";
+import { GoToPalNo } from "./pal-no";
 import { Avatar, RoleBadge, Spinner } from "@/components/ui";
 import { ROLE_LABEL, ROLE_RANK } from "@/lib/client/format";
 
@@ -116,6 +117,7 @@ function Frame({ children }: { children: ReactNode }) {
         <header className="topbar">
           <button className="btn btn-ghost btn-sm mobile-only" onClick={() => setOpen((o) => !o)} aria-label="Menu"><Menu size={20} /></button>
           <div className="grow" />
+          <GoToPalNo />
           <NotificationBell />
           {mail.configured && (
             <Link href="/mail" className="btn btn-ghost btn-sm" title="Inbox" style={{ position: "relative" }}>
