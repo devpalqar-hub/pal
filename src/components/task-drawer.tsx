@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { X, Play, Pause, CheckCircle2, Send, Flag, ThumbsUp, ThumbsDown, Plus, CalendarDays, Timer, Users, Ban, Pencil, MessageSquare, Trash2 } from "lucide-react";
 import { api } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth";
-import { fmtDateTime, fmtDate, fmtDuration, fmtMinutes } from "@/lib/client/format";
+import { fmtDateTime, fmtDate, fmtDuration, fmtMinutes, fmtPalNo } from "@/lib/client/format";
 import { useNotifications } from "@/lib/client/notifications";
 import { PalNo } from "./pal-no";
 import { Avatar, ConfirmDelete, Loading, Modal, PriorityBadge, StatusBadge, useToast, Field } from "./ui";
@@ -36,6 +36,7 @@ export function TaskDrawer({ taskId, onClose, onChanged }: { taskId: number; onC
   const [fetchedAt, setFetchedAt] = useState(() => Date.now());
   const [busy, setBusy] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [dialog, setDialog] = useState<null | "complete" | "review" | "reject" | "decline" | "assignees">(null);
   const [reviewerId, setReviewerId] = useState("");
   const [note, setNote] = useState("");
@@ -133,6 +134,7 @@ export function TaskDrawer({ taskId, onClose, onChanged }: { taskId: number; onC
             </div>
           </div>
           <div className="actions" style={{ alignSelf: "flex-start" }}>
+            {isEditor && status !== "ENDED" && <button className="btn btn-ghost btn-sm" onClick={() => setEditing(true)} title="Edit task" aria-label="Edit task"><Pencil size={18} /></button>}
             {canDelete && <button className="btn btn-ghost btn-sm" onClick={() => setDeleting(true)} title="Delete task" aria-label="Delete task"><Trash2 size={18} /></button>}
             <button className="btn btn-ghost btn-sm" onClick={onClose} aria-label="Close"><X size={20} /></button>
           </div>
@@ -329,6 +331,7 @@ export function TaskDrawer({ taskId, onClose, onChanged }: { taskId: number; onC
         </Modal>
       )}
 
+      {editing && <EditTaskModal task={task} options={assignOptions} lockedIds={lockedIds} canReassign={!closed} meId={user.id} onClose={() => setEditing(false)} onSaved={async () => { setEditing(false); toast("Task updated"); await load(); onChanged(); }} />}
       {deleting && (
         <ConfirmDelete title="Delete this task?" onClose={() => setDeleting(false)} onConfirm={async () => {
           const r = await api(`/api/tasks/${task.id}`, { method: "DELETE" });
@@ -344,5 +347,42 @@ export function TaskDrawer({ taskId, onClose, onChanged }: { taskId: number; onC
           onClose={() => setSubOpen(false)} onCreated={() => { setSubOpen(false); toast("Sub-task created"); load(); onChanged(); }} />
       )}
     </div>
+  );
+}
+
+/** Edit everything about a task in one place: title, description, priority, estimate, due date and assignees. */
+function EditTaskModal({ task, options, lockedIds, canReassign, meId, onClose, onSaved }: { task: any; options: Member[]; lockedIds: number[]; canReassign: boolean; meId: number; onClose: () => void; onSaved: () => void }) {
+  const activeIds: number[] = task.assignees.filter((a: any) => a.status === "ASSIGNED").map((a: any) => a.userId);
+  const [f, setF] = useState({ title: task.title as string, description: (task.description ?? "") as string, priority: task.priority as string, estimatedMinutes: task.estimatedMinutes ? String(task.estimatedMinutes) : "", dueDate: task.dueDate ? String(task.dueDate).slice(0, 10) : "" });
+  const [ids, setIds] = useState<number[]>(activeIds);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
+  const peopleChanged = ids.length !== activeIds.length || ids.some((x) => !activeIds.includes(x));
+  async function save() {
+    setBusy(true); setErr("");
+    try {
+      await api(`/api/tasks/${task.id}`, { method: "PATCH", body: {
+        title: f.title, description: f.description || null, priority: f.priority,
+        estimatedMinutes: f.estimatedMinutes ? Number(f.estimatedMinutes) : null, dueDate: f.dueDate || null,
+        ...(peopleChanged && { assigneeIds: ids }),
+      } });
+      onSaved();
+    } catch (e) { setErr(e instanceof Error ? e.message : "Failed"); setBusy(false); }
+  }
+  return (
+    <Modal title={`Edit task ${fmtPalNo(task.palNo)}`} wide onClose={onClose} footer={<><button className="btn" onClick={onClose}>Cancel</button><button className="btn btn-primary" disabled={busy || !f.title.trim()} onClick={save}>Save changes</button></>}>
+      {err && <div className="alert alert-error">{err}</div>}
+      <Field label="Title"><input className="input" value={f.title} onChange={set("title")} maxLength={200} autoFocus /></Field>
+      <div className="row">
+        <Field label="Priority"><select className="select" value={f.priority} onChange={set("priority")}>{["LOW", "MEDIUM", "HIGH", "URGENT"].map((p) => <option key={p} value={p}>{p[0] + p.slice(1).toLowerCase()}</option>)}</select></Field>
+        <Field label="Estimate (minutes)" hint="Clear to remove"><input className="input" type="number" min={1} value={f.estimatedMinutes} onChange={set("estimatedMinutes")} /></Field>
+        <Field label="Due date" hint="Clear to remove"><input className="input" type="date" value={f.dueDate} onChange={set("dueDate")} /></Field>
+      </div>
+      <Field label="Description"><RichTextEditor value={f.description} onChange={(html) => setF((s) => ({ ...s, description: html }))} minHeight={120} /></Field>
+      <Field label={`Assigned to (${ids.length})`} hint={canReassign ? "People who already started can't be removed." : "Assignees can't change while the task is completed or in review."}>
+        <PeoplePicker options={options} value={ids} onChange={setIds} meId={meId} locked={canReassign ? lockedIds : options.map((o) => o.user.id)} />
+      </Field>
+    </Modal>
   );
 }
