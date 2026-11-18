@@ -53,7 +53,7 @@ export function PageHeader({ title, subtitle, actions, crumbs }: { title: string
   );
 }
 
-export function Modal({ title, onClose, children, footer, wide }: { title: string; onClose: () => void; children: ReactNode; footer?: ReactNode; wide?: boolean }) {
+export function Modal({ title, onClose, children, footer, wide, width, icon, subtitle }: { title: string; onClose: () => void; children: ReactNode; footer?: ReactNode; wide?: boolean; width?: number; icon?: ReactNode; subtitle?: string }) {
   useEffect(() => {
     const h = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", h);
@@ -61,9 +61,12 @@ export function Modal({ title, onClose, children, footer, wide }: { title: strin
   }, [onClose]);
   return (
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal" style={wide ? { maxWidth: 680 } : undefined}>
+      <div className="modal" style={width ? { maxWidth: width } : wide ? { maxWidth: 680 } : undefined}>
         <div className="modal-head">
-          <h3>{title}</h3>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {icon && <span className="modal-icon">{icon}</span>}
+            <div><h3>{title}</h3>{subtitle && <p className="hint" style={{ marginTop: 2 }}>{subtitle}</p>}</div>
+          </div>
           <button className="btn btn-ghost btn-sm" onClick={onClose} aria-label="Close"><X size={18} /></button>
         </div>
         <div className="modal-body">{children}</div>

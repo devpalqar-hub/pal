@@ -224,7 +224,7 @@ export const rsvpSchema = z.object({ response: z.enum(["ACCEPTED", "DECLINED", "
 // ───────── Leads ─────────
 const leadStage = z.enum(["NEW", "CONTACTED", "MQL", "SQL", "DEMO_SCHEDULED", "DEMO_DONE", "PROPOSAL", "NEGOTIATION", "WON", "LOST"]);
 const leadTemp = z.enum(["HOT", "WARM", "COLD"]);
-const leadSource = z.enum(["WEBSITE", "REFERRAL", "SOCIAL_MEDIA", "EMAIL_CAMPAIGN", "COLD_CALL", "EVENT", "PARTNER", "ADVERTISEMENT", "OTHER"]);
+const leadSource = z.enum(["WEBSITE", "SEARCH_ENGINE", "REFERRAL", "SOCIAL_MEDIA", "EMAIL_CAMPAIGN", "COLD_CALL", "EVENT", "PARTNER", "ADVERTISEMENT", "OTHER"]);
 const followUpType = z.enum(["CALL", "EMAIL", "WHATSAPP", "MEETING", "OTHER"]);
 const optText = (max: number) => z.string().trim().max(max).optional().or(z.literal("").transform(() => undefined));
 const nullText = (max: number) => z.string().trim().max(max).nullable().optional().transform((v) => (v === "" ? null : v));
@@ -249,7 +249,7 @@ export const createLeadSchema = z.object({
   temperature: leadTemp.default("WARM"),
   value: z.number().nonnegative().max(1e12).optional(),
   currency: z.string().length(3).default("INR"),
-  requirement: optText(5000),
+  requirement: richCreate.optional(),
   tags: optText(300),
   ownerId: z.number().int().positive().optional(),
   firstFollowUp: followUpSchema.optional(),
@@ -265,7 +265,7 @@ export const updateLeadSchema = z.object({
   source: leadSource.optional(),
   value: z.number().nonnegative().max(1e12).nullable().optional(),
   currency: z.string().length(3).optional(),
-  requirement: nullText(5000),
+  requirement: richUpdate.optional(),
   tags: nullText(300),
   ownerId: z.number().int().positive().optional(),
 });

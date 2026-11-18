@@ -6,6 +6,7 @@ import { istDateKey } from "./time";
 import { stateFromEvents, totals } from "./attendance";
 import { sweepShiftEnds } from "./day-timer";
 import { teamRoles } from "./analytics";
+import { leaveBalance } from "./leave";
 
 const DAY = 86_400_000;
 const OPEN = ["TODO", "IN_PROGRESS", "PAUSED", "IN_REVIEW"] as const;
@@ -167,14 +168,21 @@ export async function teamOverview(actor: AuthUser, days = 30) {
 /** One person: their tasks (across all projects) with status and time, plus full work-culture breakdown. */
 export async function memberDetail(target: { id: number }, days = 30) {
   await sweepShiftEnds();
-  const [user, culture, assignments] = await Promise.all([
-    prisma.user.findUniqueOrThrow({ where: { id: target.id }, select: { id: true, name: true, email: true, role: true, designation: true, schedule: true } }),
+  const [user, culture, assignments, memberships, leave, upcomingLeave] = await Promise.all([
+    prisma.user.findUniqueOrThrow({ where: { id: target.id }, select: { id: true, name: true, email: true, mailEmail: true, role: true, designation: true, isActive: true, createdAt: true, schedule: true } }),
     cultureFor([target.id], days),
     prisma.taskAssignee.findMany({
       where: { userId: target.id, status: "ASSIGNED" },
       include: { task: { select: { id: true, title: true, status: true, priority: true, dueDate: true, estimatedMinutes: true, completedAt: true, project: { select: { id: true, name: true } }, _count: { select: { subtasks: true } } } } },
       orderBy: { createdAt: "desc" },
     }),
+    prisma.projectMember.findMany({
+      where: { userId: target.id },
+      select: { role: true, createdAt: true, project: { select: { id: true, name: true, status: true, dueDate: true } } },
+      orderBy: { createdAt: "desc" },
+    }),
+    leaveBalance(target.id),
+    prisma.leaveRequest.findMany({ where: { userId: target.id, status: { in: ["APPROVED", "PENDING"] }, endDate: { gte: istDateKey() } }, orderBy: { startDate: "asc" }, take: 5, select: { id: true, startDate: true, endDate: true, days: true, type: true, status: true } }),
   ]);
   const todayAtt = await prisma.attendanceDay.findUnique({ where: { userId_date: { userId: target.id, date: istDateKey() } }, include: { events: { orderBy: { at: "asc" } } } });
   const now = Date.now();
@@ -201,8 +209,16 @@ export async function memberDetail(target: { id: number }, days = 30) {
   });
   const byStatus: Record<string, number> = {};
   tasks.forEach((t) => (byStatus[t.status] = (byStatus[t.status] ?? 0) + 1));
+  const doneTasks = tasks.filter((t) => t.status === "COMPLETED" || t.status === "ENDED");
+  const totalSeconds = tasks.reduce((n, t) => n + t.workedSeconds, 0);
   return {
     user,
+    profile: {
+      projects: memberships.map((m) => ({ ...m.project, projectRole: m.role, joinedAt: m.createdAt })),
+      leave,
+      upcomingLeave,
+      lifetime: { tasks: tasks.length, done: doneTasks.length, loggedSeconds: totalSeconds },
+    },
     today: {
       state: stateFromEvents(todayAtt?.events ?? []),
       workedMinutes: todayAtt ? Math.floor(totals(todayAtt.events).work) : 0,

@@ -646,6 +646,8 @@ enum LeadTemperature {
 
 enum LeadSource {
   WEBSITE
+  /// Google / Bing search, SEO, search ads
+  SEARCH_ENGINE
   REFERRAL
   SOCIAL_MEDIA
   EMAIL_CAMPAIGN
@@ -701,7 +703,7 @@ model Lead {
   /// Expected deal value
   value          Decimal?        @db.Decimal(14, 2)
   currency       String          @default("INR")
-  /// What they need / requirement summary
+  /// What they need — rich text (sanitised HTML)
   requirement    String?         @db.Text
   tags           String?
   lostReason     String?         @db.Text

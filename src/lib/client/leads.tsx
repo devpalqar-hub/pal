@@ -21,7 +21,7 @@ export const TEMPS: { key: string; label: string; tone: string; emoji: string }[
 ];
 export const TEMP = Object.fromEntries(TEMPS.map((t) => [t.key, t]));
 
-export const SOURCES = ["WEBSITE", "REFERRAL", "SOCIAL_MEDIA", "EMAIL_CAMPAIGN", "COLD_CALL", "EVENT", "PARTNER", "ADVERTISEMENT", "OTHER"];
+export const SOURCES = ["WEBSITE", "SEARCH_ENGINE", "REFERRAL", "SOCIAL_MEDIA", "EMAIL_CAMPAIGN", "COLD_CALL", "EVENT", "PARTNER", "ADVERTISEMENT", "OTHER"];
 export const FOLLOW_UP_TYPES = ["CALL", "EMAIL", "WHATSAPP", "MEETING", "OTHER"];
 export const pretty = (s: string) => s.charAt(0) + s.slice(1).toLowerCase().replace(/_/g, " ");
 

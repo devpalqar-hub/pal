@@ -19,6 +19,8 @@ stateDiagram-v2
 ```
 
 - Any stage can move to any other stage (the board supports drag and drop; the lead page has a clickable stepper). **LOST needs a reason.** WON / LOST close every open follow-up.
+- **Source** includes Search engine (Google / Bing, SEO, search ads), Website, Referral, Social media, Email campaign, Cold call, Event, Partner, Advertisement, Other.
+- **Requirement** is rich text (TipTap editor), sanitised on the server.
 - **Temperature** (🔥 Hot / ☀️ Warm / ❄️ Cold) is independent of the stage.
 - Every change — stage, temperature, owner, details, call / email / WhatsApp / note, follow-up planned / done / cancelled, meeting scheduled / cancelled — is written to the **lead journey** (`lead_activities`).
 

@@ -8,6 +8,7 @@ import { fmtDate, fmtDateTime, isoToIst } from "@/lib/client/format";
 import { LEAD_STAGES, OPEN_STAGE_KEYS, STAGE, TEMPS, TEMP, StageBadge, TempBadge, fmtMoney, pretty } from "@/lib/client/leads";
 import { Avatar, Field, Loading, Modal, PageHeader, Spinner, useToast } from "@/components/ui";
 import { FollowUpFields, LeadFormModal, StageChangeModal, blankFU, fuBody, usePeople, type FU } from "@/components/lead-parts";
+import { RichText } from "@/components/rich-text";
 import { MeetingDrawer, MeetingFormModal, timeRange } from "@/components/meeting-parts";
 
 const ACT_ICON: Record<string, typeof Phone> = {
@@ -149,7 +150,7 @@ export default function LeadPage({ params }: { params: Promise<{ id: string }> }
               <dt>Created</dt><dd>{fmtDate(l.createdAt)} by {l.creator.name}</dd>
               {l.tags && <><dt>Tags</dt><dd>{l.tags.split(",").map((t: string) => <span key={t} className="badge b-gray" style={{ marginRight: 4 }}>{t.trim()}</span>)}</dd></>}
             </dl>
-            {l.requirement && <><h4 style={{ margin: "12px 0 6px" }}>Requirement</h4><p style={{ whiteSpace: "pre-wrap", fontSize: 13 }}>{l.requirement}</p></>}
+            {l.requirement && <><h4 style={{ margin: "12px 0 6px" }}>Requirement</h4><RichText html={l.requirement} /></>}
             <div className="actions" style={{ marginTop: 12 }}>
               {l.phone && <a className="btn btn-sm" href={`tel:${l.phone}`}><Phone size={14} /> Call</a>}
               {l.email && <a className="btn btn-sm" href={`mailto:${l.email}`}><Mail size={14} /> Email</a>}

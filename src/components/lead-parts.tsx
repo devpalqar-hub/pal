@@ -6,6 +6,8 @@ import { useAuth } from "@/lib/client/auth";
 import { isoToIst, istToIso } from "@/lib/client/format";
 import { FOLLOW_UP_TYPES, LEAD_STAGES, SOURCES, TEMPS, pretty } from "@/lib/client/leads";
 import { Field, Modal, Spinner, useToast } from "./ui";
+import { RichTextEditor } from "./rich-text";
+import { AlarmClock, Building2, FileText, Target, TrendingUp, User } from "lucide-react";
 
 export type FU = { on: boolean; type: string; date: string; time: string; assigneeId: string; note: string };
 
@@ -63,7 +65,7 @@ export function LeadFormModal({ lead, onClose, onSaved }: { lead?: any; onClose:
     try {
       const common = {
         name: f.name, company: f.company, designation: f.designation, email: f.email, phone: f.phone, website: f.website, source: f.source,
-        value: f.value === "" ? (lead ? null : undefined) : Number(f.value), currency: f.currency, requirement: f.requirement, tags: f.tags,
+        value: f.value === "" ? (lead ? null : undefined) : Number(f.value), currency: f.currency, requirement: f.requirement || (lead ? null : undefined), tags: f.tags,
         ...(f.ownerId && { ownerId: Number(f.ownerId) }),
       };
       const r = lead
@@ -74,38 +76,68 @@ export function LeadFormModal({ lead, onClose, onSaved }: { lead?: any; onClose:
     } catch (e) { setErr(e instanceof Error ? e.message : "Failed"); setBusy(false); }
   }
 
+  const sec = (Icon: typeof User, title: string, hint?: string) => <div className="dc-head"><h3><Icon size={15} color="var(--primary)" /> {title}</h3>{hint && <span className="hint">{hint}</span>}</div>;
+
   return (
-    <Modal title={lead ? "Edit lead" : "New lead"} onClose={onClose} wide
-      footer={<><button className="btn" onClick={onClose}>Cancel</button><button className="btn btn-primary" form="leadform" disabled={busy}>{busy ? <Spinner /> : lead ? "Save" : "Create lead"}</button></>}>
-      <form id="leadform" onSubmit={submit}>
-        {err && <div className="alert alert-error">{err}</div>}
-        <div className="row">
-          <Field label="Contact name"><input className="input" value={f.name} onChange={(e) => set({ name: e.target.value })} required autoFocus /></Field>
-          <Field label="Company"><input className="input" value={f.company} onChange={(e) => set({ company: e.target.value })} /></Field>
-          <Field label="Designation"><input className="input" value={f.designation} onChange={(e) => set({ designation: e.target.value })} placeholder="CTO, Founder…" /></Field>
-        </div>
-        <div className="row">
-          <Field label="Email"><input type="email" className="input" value={f.email} onChange={(e) => set({ email: e.target.value })} /></Field>
-          <Field label="Phone"><input className="input" value={f.phone} onChange={(e) => set({ phone: e.target.value })} placeholder="+91…" /></Field>
-          <Field label="Website"><input className="input" value={f.website} onChange={(e) => set({ website: e.target.value })} /></Field>
-        </div>
-        <div className="row">
-          <Field label="Source"><select className="select" value={f.source} onChange={(e) => set({ source: e.target.value })}>{SOURCES.map((s) => <option key={s} value={s}>{pretty(s)}</option>)}</select></Field>
-          {!lead && <Field label="Stage"><select className="select" value={f.stage} onChange={(e) => set({ stage: e.target.value })}>{LEAD_STAGES.filter((s) => s.key !== "LOST").map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}</select></Field>}
-          {!lead && <Field label="Temperature"><select className="select" value={f.temperature} onChange={(e) => set({ temperature: e.target.value })}>{TEMPS.map((t) => <option key={t.key} value={t.key}>{t.emoji} {t.label}</option>)}</select></Field>}
-        </div>
-        <div className="row">
-          <Field label="Expected deal value"><input type="number" min={0} className="input" value={f.value} onChange={(e) => set({ value: e.target.value })} /></Field>
-          <Field label="Currency"><select className="select" value={f.currency} onChange={(e) => set({ currency: e.target.value })}>{["INR", "USD", "EUR", "GBP", "AED", "SGD"].map((c) => <option key={c}>{c}</option>)}</select></Field>
-          <Field label="Owner"><select className="select" value={f.ownerId} onChange={(e) => set({ ownerId: e.target.value })}><option value="">{lead ? "Keep current owner" : "Me"}</option>{people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>
-        </div>
-        <Field label="Requirement" hint="What do they need?"><textarea className="textarea" value={f.requirement} onChange={(e) => set({ requirement: e.target.value })} /></Field>
-        <Field label="Tags" hint="Comma separated, e.g. enterprise, saas"><input className="input" value={f.tags} onChange={(e) => set({ tags: e.target.value })} /></Field>
+    <Modal title={lead ? "Edit lead" : "New lead"} subtitle={lead ? `${lead.name}${lead.company ? ` · ${lead.company}` : ""}` : "Add a prospect to the pipeline"} icon={<Target size={18} />} onClose={onClose} width={760}
+      footer={<><button className="btn" onClick={onClose}>Cancel</button><button className="btn btn-primary" form="leadform" disabled={busy}>{busy ? <Spinner /> : lead ? "Save changes" : "Create lead"}</button></>}>
+      <form id="leadform" onSubmit={submit} className="form-sections">
+        {err && <div className="alert alert-error" style={{ marginBottom: 0 }}>{err}</div>}
+
+        <section className="form-section">
+          {sec(User, "Contact")}
+          <div className="row">
+            <Field label="Contact name"><input className="input" value={f.name} onChange={(e) => set({ name: e.target.value })} required autoFocus placeholder="Full name" /></Field>
+            <Field label="Designation"><input className="input" value={f.designation} onChange={(e) => set({ designation: e.target.value })} placeholder="CTO, Founder…" /></Field>
+          </div>
+          <div className="row">
+            <Field label="Email"><input type="email" className="input" value={f.email} onChange={(e) => set({ email: e.target.value })} placeholder="name@company.com" /></Field>
+            <Field label="Phone"><input className="input" value={f.phone} onChange={(e) => set({ phone: e.target.value })} placeholder="+91…" /></Field>
+          </div>
+        </section>
+
+        <section className="form-section">
+          {sec(Building2, "Company")}
+          <div className="row">
+            <Field label="Company"><input className="input" value={f.company} onChange={(e) => set({ company: e.target.value })} /></Field>
+            <Field label="Website"><input className="input" value={f.website} onChange={(e) => set({ website: e.target.value })} placeholder="company.com" /></Field>
+          </div>
+          <Field label="Source" hint="Where did this lead come from?">
+            <div className="seg-pick">{SOURCES.map((x) => <button type="button" key={x} className={f.source === x ? "on" : ""} onClick={() => set({ source: x })}>{pretty(x)}</button>)}</div>
+          </Field>
+        </section>
+
+        <section className="form-section">
+          {sec(TrendingUp, "Deal & pipeline", lead ? "Change stage and temperature on the lead page" : undefined)}
+          {!lead && (
+            <>
+              <Field label="Stage"><select className="select" value={f.stage} onChange={(e) => set({ stage: e.target.value })}>{LEAD_STAGES.filter((x) => x.key !== "LOST").map((x) => <option key={x.key} value={x.key}>{x.label} — {x.hint}</option>)}</select></Field>
+              <Field label="Temperature">
+                <div className="seg full">{TEMPS.map((t) => <button type="button" key={t.key} className={f.temperature === t.key ? "on" : ""} onClick={() => set({ temperature: t.key })}>{t.emoji} {t.label}</button>)}</div>
+              </Field>
+            </>
+          )}
+          <div className="row">
+            <Field label="Expected deal value"><input type="number" min={0} className="input" value={f.value} onChange={(e) => set({ value: e.target.value })} placeholder="0" /></Field>
+            <Field label="Currency"><select className="select" value={f.currency} onChange={(e) => set({ currency: e.target.value })}>{["INR", "USD", "EUR", "GBP", "AED", "SGD"].map((c) => <option key={c}>{c}</option>)}</select></Field>
+            <Field label="Owner"><select className="select" value={f.ownerId} onChange={(e) => set({ ownerId: e.target.value })}><option value="">{lead ? "Keep current owner" : "Me"}</option>{people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>
+          </div>
+          <Field label="Tags" hint="Comma separated, e.g. enterprise, saas"><input className="input" value={f.tags} onChange={(e) => set({ tags: e.target.value })} /></Field>
+        </section>
+
+        <section className="form-section">
+          {sec(FileText, "Requirement", "What do they need?")}
+          <div className="field"><RichTextEditor value={f.requirement} onChange={(html) => set({ requirement: html })} placeholder="Scope, pain points, budget, timeline, decision makers…" minHeight={120} /></div>
+        </section>
+
         {!lead && (
-          <>
-            <label style={{ display: "flex", gap: 8, alignItems: "center", margin: "6px 0 12px", fontWeight: 600 }}><input type="checkbox" checked={fu.on} onChange={(e) => setFu({ ...fu, on: e.target.checked })} /> Schedule the first follow-up</label>
-            {fu.on && <FollowUpFields value={fu} onChange={setFu} people={people} />}
-          </>
+          <section className="form-section">
+            <div className="dc-head">
+              <h3><AlarmClock size={15} color="var(--primary)" /> First follow-up</h3>
+              <label className="hint" style={{ display: "inline-flex", gap: 6, alignItems: "center" }}><input type="checkbox" checked={fu.on} onChange={(e) => setFu({ ...fu, on: e.target.checked })} /> Schedule now</label>
+            </div>
+            {fu.on ? <FollowUpFields value={fu} onChange={setFu} people={people} /> : <p className="hint" style={{ marginBottom: 12 }}>No follow-up yet. You can plan one later on the lead page.</p>}
+          </section>
         )}
       </form>
     </Modal>
